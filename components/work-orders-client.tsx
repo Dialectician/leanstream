@@ -1,0 +1,148 @@
+"use client";
+
+import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
+// Define the type for a work order based on your table schema
+type Order = {
+  id: number;
+  order_number: string;
+  quantity: number | null;
+  status: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
+interface WorkOrdersClientProps {
+  orders: Order[];
+}
+
+export function WorkOrdersClient({
+  orders: initialOrders,
+}: WorkOrdersClientProps) {
+  const supabase = createClient();
+  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [newOrderNumber, setNewOrderNumber] = useState("");
+  const [newQuantity, setNewQuantity] = useState("");
+  const [newNotes, setNewNotes] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleAddOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    const { data: newOrder, error: insertError } = await supabase
+      .from("work_orders")
+      .insert({
+        order_number: newOrderNumber,
+        quantity: newQuantity ? parseInt(newQuantity, 10) : null,
+        notes: newNotes,
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      setError(insertError.message);
+    } else if (newOrder) {
+      // Add the new order to the top of the list
+      setOrders([newOrder, ...orders]);
+      setNewOrderNumber("");
+      setNewQuantity("");
+      setNewNotes("");
+    }
+    setIsLoading(false);
+  };
+
+  return (
+    <div className="grid gap-8 md:grid-cols-2">
+      {/* Form Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Add New Work Order</CardTitle>
+          <CardDescription>Create a new job to track.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleAddOrder} className="flex flex-col gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="order_number">Order Number</Label>
+              <Input
+                id="order_number"
+                placeholder="e.g., WO-1001"
+                value={newOrderNumber}
+                onChange={(e) => setNewOrderNumber(e.target.value)}
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="quantity">Quantity</Label>
+              <Input
+                id="quantity"
+                type="number"
+                placeholder="e.g., 50"
+                value={newQuantity}
+                onChange={(e) => setNewQuantity(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="notes">Notes</Label>
+              <Input
+                id="notes"
+                placeholder="Optional notes about the order"
+                value={newNotes}
+                onChange={(e) => setNewNotes(e.target.value)}
+              />
+            </div>
+            <Button type="submit" disabled={isLoading} className="mt-2">
+              {isLoading ? "Adding..." : "Add Work Order"}
+            </Button>
+            {error && <p className="text-sm text-red-500 mt-2">{error}</p>}
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* List Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Existing Work Orders</CardTitle>
+          <CardDescription>A list of all jobs in the system.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-2">
+            {orders.length > 0 ? (
+              orders.map((order) => (
+                <li
+                  key={order.id}
+                  className="flex justify-between items-center p-3 border rounded-md"
+                >
+                  <div>
+                    <p className="font-bold text-lg">{order.order_number}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Quantity: {order.quantity ?? "N/A"}
+                    </p>
+                  </div>
+                  <span className="text-sm font-medium px-2 py-1 bg-secondary text-secondary-foreground rounded-md">
+                    {order.status}
+                  </span>
+                </li>
+              ))
+            ) : (
+              <p className="text-muted-foreground">No work orders found.</p>
+            )}
+          </ul>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
