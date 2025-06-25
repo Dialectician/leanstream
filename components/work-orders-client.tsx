@@ -13,16 +13,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import Link from "next/link";
+// Correctly import workOrders (camelCase)
+import type { workOrders } from "@/lib/db/schema"; 
 
-// Define the type for a work order based on your table schema
-type Order = {
-  id: number;
-  order_number: string;
-  quantity: number | null;
-  status: string | null;
-  notes: string | null;
-  created_at: string;
-};
+// Use the Drizzle-generated type for a work order
+type Order = typeof workOrders.$inferSelect;
 
 interface WorkOrdersClientProps {
   orders: Order[];
@@ -57,8 +52,9 @@ export function WorkOrdersClient({
     if (insertError) {
       setError(insertError.message);
     } else if (newOrder) {
-      // Add the new order to the top of the list
-      setOrders([newOrder, ...orders]);
+      // The type from .select() might not match Drizzle's exactly, so we cast it.
+      // This is safe because it's coming directly from the same table.
+      setOrders([newOrder as Order, ...orders]);
       setNewOrderNumber("");
       setNewQuantity("");
       setNewNotes("");
@@ -131,7 +127,7 @@ export function WorkOrdersClient({
                   <Link href={`/protected/orders/${order.id}`}>
                     <div className="flex justify-between items-center p-3 border rounded-md hover:bg-accent transition-colors cursor-pointer">
                       <div>
-                        <p className="font-bold text-lg">{order.order_number}</p>
+                        <p className="font-bold text-lg">{order.orderNumber}</p>
                         <p className="text-sm text-muted-foreground">
                           Quantity: {order.quantity ?? "N/A"}
                         </p>

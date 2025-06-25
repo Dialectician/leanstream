@@ -1,6 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
+// Correctly import workOrders (camelCase) instead of work_orders
+import { workOrders } from "@/lib/db/schema"; 
 import { WorkOrdersClient } from "@/components/work-orders-client";
+import { desc } from "drizzle-orm";
 
 export default async function OrdersPage() {
   const supabase = await createClient();
@@ -13,22 +17,14 @@ export default async function OrdersPage() {
     return redirect("/login");
   }
 
-  // Fetch work orders, ordering by the most recently created
-  const { data: orders, error } = await supabase
-    .from("work_orders")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    console.error("Error fetching work orders:", error);
-    // You might want to display an error message to the user
-  }
+  // Use the correct camelCase variable name
+  const orders = await db.select().from(workOrders).orderBy(desc(workOrders.createdAt));
 
   return (
     <div className="flex-1 w-full flex flex-col gap-8 items-center">
       <div className="w-full max-w-4xl px-4 md:px-6">
         <h1 className="text-2xl font-bold mb-6">Work Orders</h1>
-        <WorkOrdersClient orders={orders || []} />
+        <WorkOrdersClient orders={orders} />
       </div>
     </div>
   );
