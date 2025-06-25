@@ -1,65 +1,103 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { DeployButton } from "@/components/deploy-button";
-import { EnvVarWarning } from "@/components/env-var-warning";
-import { AuthButton } from "@/components/auth-button";
-import { Hero } from "@/components/hero";
-import { ThemeSwitcher } from "@/components/theme-switcher";
-import { ConnectSupabaseSteps } from "@/components/tutorial/connect-supabase-steps";
-import { SignUpUserSteps } from "@/components/tutorial/sign-up-user-steps";
-import { hasEnvVars } from "@/lib/utils";
+import { db } from "@/lib/db";
+import { desc, eq, not } from "drizzle-orm";
+import { timeEntries, workOrders } from "@/lib/db/schema";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 
-export default async function Home() {
+export default async function ProtectedPage() {
   const supabase = await createClient();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // If the user is logged in, redirect them to the protected dashboard
-  if (user) {
-    redirect("/protected");
+  if (!user) {
+    return redirect("/auth/login");
   }
 
-  // If no user, show the original landing page
-  return (
-    <main className="min-h-screen flex flex-col items-center">
-      <div className="flex-1 w-full flex flex-col gap-20 items-center">
-        <nav className="w-full flex justify-center border-b border-b-foreground/10 h-16">
-          <div className="w-full max-w-5xl flex justify-between items-center p-3 px-5 text-sm">
-            <div className="flex gap-5 items-center font-semibold">
-              <Link href={"/"}>Next.js Supabase Starter</Link>
-              <div className="flex items-center gap-2">
-                <DeployButton />
-              </div>
-            </div>
-            {!hasEnvVars ? <EnvVarWarning /> : <AuthButton />}
-          </div>
-        </nav>
-        <div className="flex-1 flex flex-col gap-20 max-w-5xl p-5">
-          <Hero />
-          <main className="flex-1 flex flex-col gap-6 px-4">
-            <h2 className="font-medium text-xl mb-4">Next steps</h2>
-            {hasEnvVars ? <SignUpUserSteps /> : <ConnectSupabaseSteps />}
-          </main>
-        </div>
+  // Fetch recent time entries with related data using Drizzle
+  const recentTimeEntries = await db.query.timeEntries.findMany({
+    with: {
+      workOrder: { columns: { orderNumber: true } },
+      workDivision: { columns: { name: true } },
+      employee: { columns: { firstName: true, lastName: true } },
+    },
+    orderBy: [desc(timeEntries.createdAt)],
+    limit: 5,
+  });
+  
+  // Fetch active work orders (status is not 'Completed')
+  const activeWorkOrders = await db.query.workOrders.findMany({
+      where: not(eq(workOrders.status, 'Completed')),
+      with: {
+          client: { columns: { name: true } }
+      },
+      orderBy: [desc(workOrders.createdAt)]
+  })
 
-        <footer className="w-full flex items-center justify-center border-t mx-auto text-center text-xs gap-8 py-16">
-          <p>
-            Powered by{" "}
-            <a
-              href="https://supabase.com/?utm_source=create-next-app&utm_medium=template&utm_term=nextjs"
-              target="_blank"
-              className="font-bold hover:underline"
-              rel="noreferrer"
-            >
-              Supabase
-            </a>
-          </p>
-          <ThemeSwitcher />
-        </footer>
+  return (
+    <div className="flex-1 w-full flex flex-col gap-8">
+      <div>
+        <h1 className="text-2xl font-bold">Welcome, {user.email}</h1>
+        <p className="text-muted-foreground">Here's a quick overview of your operations.</p>
       </div>
-    </main>
+
+      <div className="grid gap-8 md:grid-cols-2">
+        {/* Active Work Orders Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Active Work Orders</CardTitle>
+            <CardDescription>All orders that are not yet completed.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+                {activeWorkOrders.map(order => (
+                    <li key={order.id}>
+                        <Link href={`/protected/orders/${order.id}`}>
+                            <div className="flex justify-between items-center p-3 border rounded-md hover:bg-accent transition-colors">
+                                <div>
+                                    <p className="font-semibold">{order.orderNumber}</p>
+                                    <p className="text-sm text-muted-foreground">{order.client?.name || "No Client"}</p>
+                                </div>
+                                <span className="text-sm font-medium px-2 py-1 bg-secondary text-secondary-foreground rounded-md">
+                                    {order.status}
+                                </span>
+                            </div>
+                        </Link>
+                    </li>
+                ))}
+            </ul>
+          </CardContent>
+        </Card>
+
+        {/* Recent Time Entries Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+            <CardDescription>The latest time entries logged across all orders.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-3">
+              {recentTimeEntries.map((entry) => (
+                <li key={entry.id} className="p-3 border rounded-md text-sm">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-semibold">{entry.employee?.firstName} {entry.employee?.lastName}</p>
+                      <p className="text-muted-foreground">{entry.workOrder?.orderNumber} / {entry.workDivision?.name}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="font-bold">{entry.hoursSpent} hrs</p>
+                      <p className="text-xs text-muted-foreground">{entry.dateWorked}</p>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }
