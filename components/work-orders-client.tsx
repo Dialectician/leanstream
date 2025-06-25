@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import Link from "next/link";
 
 // Define the type for a work order based on your table schema
 type Order = {
@@ -71,7 +72,9 @@ export function WorkOrdersClient({
       <Card>
         <CardHeader>
           <CardTitle>Add New Work Order</CardTitle>
-          <CardDescription>Create a new job to track.</CardDescription>
+          <CardDescription>
+            Create a new job to track.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleAddOrder} className="flex flex-col gap-4">
@@ -116,25 +119,28 @@ export function WorkOrdersClient({
       <Card>
         <CardHeader>
           <CardTitle>Existing Work Orders</CardTitle>
-          <CardDescription>A list of all jobs in the system.</CardDescription>
+          <CardDescription>
+            A list of all jobs in the system. Click one to see details.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2">
             {orders.length > 0 ? (
               orders.map((order) => (
-                <li
-                  key={order.id}
-                  className="flex justify-between items-center p-3 border rounded-md"
-                >
-                  <div>
-                    <p className="font-bold text-lg">{order.order_number}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Quantity: {order.quantity ?? "N/A"}
-                    </p>
-                  </div>
-                  <span className="text-sm font-medium px-2 py-1 bg-secondary text-secondary-foreground rounded-md">
-                    {order.status}
-                  </span>
+                <li key={order.id}>
+                  <Link href={`/protected/orders/${order.id}`}>
+                    <div className="flex justify-between items-center p-3 border rounded-md hover:bg-accent transition-colors cursor-pointer">
+                      <div>
+                        <p className="font-bold text-lg">{order.order_number}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Quantity: {order.quantity ?? "N/A"}
+                        </p>
+                      </div>
+                      <span className="text-sm font-medium px-2 py-1 bg-secondary text-secondary-foreground rounded-md">
+                        {order.status}
+                      </span>
+                    </div>
+                  </Link>
                 </li>
               ))
             ) : (
