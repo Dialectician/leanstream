@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,17 +9,25 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { PlusCircle, ArrowRight, Library } from "lucide-react";
-import { createWorkOrderWithItems } from "@/app/protected/orders/actions";
-import type { workOrders, clients, items, assemblies, itemAssemblies } from "@/lib/db/schema";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { PlusCircle, ArrowRight, Library, MoreHorizontal, Trash2, Edit, CheckCircle2, X } from "lucide-react";
+import { createWorkOrderWithItems, updateWorkOrderStatus, deleteWorkOrderAction, updateWorkOrder } from "@/app/protected/orders/actions";
+import type { workOrders, clients, items, assemblies, itemAssemblies, workOrderItems, workOrderItemAssemblies } from "@/lib/db/schema";
 
 // --- TYPE DEFINITIONS ---
-type OrderWithClient = typeof workOrders.$inferSelect & { client: typeof clients.$inferSelect | null };
-type Client = typeof clients.$inferSelect;
 type Assembly = typeof assemblies.$inferSelect;
 type ItemWithAssemblies = typeof items.$inferSelect & {
   itemAssemblies: (typeof itemAssemblies.$inferSelect & { assembly: Assembly })[]
 };
+type WorkOrderItemWithDetails = typeof workOrderItems.$inferSelect & {
+    item: typeof items.$inferSelect,
+    selectedAssemblies: (typeof workOrderItemAssemblies.$inferSelect & { assembly: Assembly })[]
+};
+type OrderWithDetails = typeof workOrders.$inferSelect & { 
+    client: typeof clients.$inferSelect | null,
+    workOrderItems: WorkOrderItemWithDetails[] 
+};
+type Client = typeof clients.$inferSelect;
 type StagedItem = {
     itemId: number;
     itemName: string;
@@ -29,18 +37,21 @@ type StagedItem = {
 
 // --- COMPONENT PROPS ---
 interface WorkOrdersClientProps {
-  initialOrders: OrderWithClient[];
+  initialOrders: OrderWithDetails[];
   allClients: Client[];
   availableItems: ItemWithAssemblies[];
 }
 
 // --- MAIN COMPONENT ---
 export function WorkOrdersClient({ initialOrders, allClients, availableItems }: WorkOrdersClientProps) {
-  const [orders, setOrders] = useState<OrderWithClient[]>(initialOrders);
+  const [orders, setOrders] = useState<OrderWithDetails[]>(initialOrders);
   const [isPending, startTransition] = useTransition();
-  const [isAddDialogOpen, setAddDialogOpen] = useState(false);
+  
+  // Unified dialog state
+  const [isModalOpen, setModalOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<OrderWithDetails | null>(null);
 
-  // --- State for the multi-step "Add Order" dialog ---
+  // State for the multi-step dialog
   const [dialogStep, setDialogStep] = useState(1);
   const [orderNumber, setOrderNumber] = useState("");
   const [clientId, setClientId] = useState<number | null>(null);
@@ -48,13 +59,41 @@ export function WorkOrdersClient({ initialOrders, allClients, availableItems }: 
   const [currentItem, setCurrentItem] = useState<ItemWithAssemblies | null>(null);
   const [currentAssemblies, setCurrentAssemblies] = useState<number[]>([]);
 
-  const resetDialog = () => {
+  // Effect to populate edit form when an order is selected
+  useEffect(() => {
+    if (editingOrder) {
+      setOrderNumber(editingOrder.orderNumber);
+      setClientId(editingOrder.clientId);
+      const existingItems = editingOrder.workOrderItems.map(woi => ({
+          itemId: woi.itemId,
+          itemName: woi.item.name,
+          quantity: woi.quantity,
+          selectedAssemblies: woi.selectedAssemblies.map(sa => sa.assemblyId)
+      }));
+      setStagedItems(existingItems);
+    }
+  }, [editingOrder]);
+
+  const resetDialogs = () => {
     setDialogStep(1);
     setOrderNumber("");
     setClientId(null);
     setStagedItems([]);
     setCurrentItem(null);
     setCurrentAssemblies([]);
+    setEditingOrder(null);
+    setModalOpen(false);
+  }
+
+  const handleOpenAddModal = () => {
+    resetDialogs();
+    setModalOpen(true);
+  }
+
+  const handleOpenEditModal = (order: OrderWithDetails) => {
+    resetDialogs(); // Reset first to clear any old state
+    setEditingOrder(order);
+    setModalOpen(true);
   }
 
   const handleAddItemToStage = () => {
@@ -62,140 +101,159 @@ export function WorkOrdersClient({ initialOrders, allClients, availableItems }: 
     const newItem: StagedItem = {
         itemId: currentItem.id,
         itemName: currentItem.name,
-        quantity: 1, // Default quantity
+        quantity: 1, 
         selectedAssemblies: currentAssemblies,
     };
     setStagedItems([...stagedItems, newItem]);
-    setCurrentItem(null); // Go back to item selection
+    setCurrentItem(null); 
     setCurrentAssemblies([]);
   };
 
-  const handleCreateWorkOrder = () => {
+  const removeStagedItem = (index: number) => {
+    setStagedItems(current => current.filter((_, i) => i !== index));
+  }
+  
+  const handleFormSubmit = () => {
+    const isEditing = !!editingOrder;
+    
     if (!orderNumber || stagedItems.length === 0) {
         alert("Please provide an order number and add at least one item.");
         return;
     }
+
     const formData = new FormData();
     formData.append('orderNumber', orderNumber);
     formData.append('clientId', String(clientId));
+    formData.append('status', editingOrder?.status ?? 'Planned');
     formData.append('items', JSON.stringify(stagedItems));
 
     startTransition(async () => {
-        const result = await createWorkOrderWithItems(formData);
-        if (result.success) {
-            setAddDialogOpen(false);
-            resetDialog();
-        } else {
-            alert(`Error: ${result.message}`);
-        }
+      const result = await (isEditing ? updateWorkOrder(editingOrder!.id, formData) : createWorkOrderWithItems(formData));
+
+      if (result.success) {
+        resetDialogs();
+      } else {
+        alert(`Error: ${result.message}`);
+      }
     });
   }
+  
+  const handleStatusUpdate = (orderId: number, newStatus: string) => {
+    startTransition(async () => {
+      const result = await updateWorkOrderStatus(orderId, newStatus);
+      if (result.success && result.data) {
+        setOrders(currentOrders => 
+          currentOrders.map(o => o.id === orderId ? {...o, status: result.data!.status} : o)
+        );
+      } else {
+        alert(`Error: ${result.message}`);
+      }
+    });
+  };
+
+  const handleDelete = (orderId: number) => {
+    if (window.confirm("Are you sure? This will permanently delete the order.")) {
+      startTransition(async () => {
+        const result = await deleteWorkOrderAction(orderId);
+        if (result.success) {
+          setOrders(currentOrders => currentOrders.filter(o => o.id !== orderId));
+        } else {
+          alert(`Error: ${result.message}`);
+        }
+      });
+    }
+  }
+
+  const activeOrders = useMemo(() => orders.filter(o => o.status !== 'Completed'), [orders]);
+  const completedOrders = useMemo(() => orders.filter(o => o.status === 'Completed'), [orders]);
 
   return (
     <div className="w-full space-y-4">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Work Orders</h1>
-        <Dialog open={isAddDialogOpen} onOpenChange={(isOpen) => {
-            if (!isOpen) resetDialog();
-            setAddDialogOpen(isOpen);
-        }}>
-          <DialogTrigger asChild>
-            <Button>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              New Work Order
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle>Create New Work Order</DialogTitle>
-              <DialogDescription>Follow the steps to build and create a new work order.</DialogDescription>
-            </DialogHeader>
-
-            {/* Step 1: Basic Info */}
-            {dialogStep === 1 && (
-                <div className="space-y-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor="orderNumber">Order Number</Label>
-                            <Input id="orderNumber" value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="clientId">Client</Label>
-                            <select id="clientId" value={clientId ?? ""} onChange={(e) => setClientId(Number(e.target.value))} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm">
-                                <option value="">Select a client...</option>
-                                {allClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
-                        </div>
-                    </div>
-                    <div className="pt-4">
-                        <h3 className="font-semibold mb-2">Staged Items ({stagedItems.length})</h3>
-                        <div className="border rounded-lg p-2 min-h-[60px] space-y-1">
-                            {stagedItems.map((item, index) => <p key={index} className="text-sm"> - {item.itemName} (Qty: {item.quantity})</p>)}
-                        </div>
-                    </div>
-                    <div className="flex justify-end pt-2">
-                        <Link href="/protected/item-builder" target="_blank">
-                           <Button variant="outline" size="sm"><Library className="mr-2 h-4 w-4" />Go to Item Builder</Button>
-                        </Link>
-                    </div>
-                </div>
-            )}
-            
-            {/* Step 2: Item and Assembly Selection */}
-            {dialogStep === 2 && (
-                <div className="py-4">
-                    {!currentItem ? (
-                        <div>
-                            <Label>Select an Item to Add</Label>
-                             <div className="grid grid-cols-3 gap-2 mt-2">
-                                {availableItems.map(item => (
-                                    <Button key={item.id} variant="outline" onClick={() => setCurrentItem(item)}>
-                                        {item.name}
-                                    </Button>
-                                ))}
-                            </div>
-                        </div>
-                    ) : (
-                        <div>
-                            <h3 className="font-semibold">Configure: {currentItem.name}</h3>
-                            <div className="mt-2 space-y-2">
-                                <p className="text-sm font-medium">Select required assemblies:</p>
-                                {currentItem.itemAssemblies.map(ia => (
-                                    <div key={ia.assembly.id} className="flex items-center space-x-2">
-                                        <Checkbox 
-                                            id={`assembly-${ia.assembly.id}`} 
-                                            onCheckedChange={(checked) => {
-                                                if (checked) {
-                                                    setCurrentAssemblies(prev => [...prev, ia.assembly.id]);
-                                                } else {
-                                                    setCurrentAssemblies(prev => prev.filter(id => id !== ia.assembly.id));
-                                                }
-                                            }}
-                                        />
-                                        <label htmlFor={`assembly-${ia.assembly.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                            {ia.assembly.name}
-                                        </label>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-
-
-            <DialogFooter>
-                {dialogStep === 1 && <Button onClick={() => setDialogStep(2)} disabled={!orderNumber}>Add/Configure Items <ArrowRight className="ml-2 h-4 w-4"/></Button>}
-                {dialogStep === 2 && !currentItem && <Button variant="secondary" onClick={() => setDialogStep(1)}>Back to Details</Button>}
-                {dialogStep === 2 && currentItem && <Button variant="secondary" onClick={() => setCurrentItem(null)}>Change Item</Button>}
-                {dialogStep === 2 && currentItem && <Button onClick={handleAddItemToStage}>Add to Order</Button>}
-                
-                <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-                {dialogStep === 1 && stagedItems.length > 0 && <Button onClick={handleCreateWorkOrder} disabled={isPending}>{isPending ? "Creating..." : "Create Work Order"}</Button>}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={handleOpenAddModal}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          New Work Order
+        </Button>
       </div>
+
+      <Dialog open={isModalOpen} onOpenChange={(isOpen) => !isOpen && resetDialogs()}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{editingOrder ? `Edit Work Order: ${editingOrder.orderNumber}` : 'Create New Work Order'}</DialogTitle>
+            <DialogDescription>
+              {editingOrder ? "Update the details for this work order." : "Follow the steps to build and create a new work order."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {dialogStep === 1 && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2"><Label>Order Number</Label><Input value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} /></div>
+                <div className="grid gap-2"><Label>Client</Label>
+                  <select value={clientId ?? ""} onChange={(e) => setClientId(Number(e.target.value))} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm">
+                    <option value="">Select a client...</option>
+                    {allClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="pt-4">
+                <h3 className="font-semibold mb-2">Items on Order ({stagedItems.length})</h3>
+                <div className="border rounded-lg p-2 min-h-[80px] space-y-1">
+                  {stagedItems.length > 0 ? stagedItems.map((item, index) => (
+                    <div key={index} className="flex justify-between items-center text-sm p-1 hover:bg-muted/50 rounded-md">
+                      <span>- {item.itemName} (Qty: {item.quantity})</span>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeStagedItem(index)}><X className="h-4 w-4 text-destructive" /></Button>
+                    </div>
+                  )) : <p className="text-sm text-muted-foreground p-2">No items added yet.</p>}
+                </div>
+              </div>
+               <div className="flex justify-end pt-2"><Link href="/protected/item-builder" target="_blank"><Button variant="outline" size="sm"><Library className="mr-2 h-4 w-4" />Item/Assembly Library</Button></Link></div>
+            </div>
+          )}
+          
+          {dialogStep === 2 && (
+            <div className="py-4">
+              {!currentItem ? (
+                <div>
+                  <Label>Select an Item to Add</Label>
+                   <div className="grid grid-cols-3 gap-2 mt-2">
+                      {availableItems.map(item => (
+                          <Button key={item.id} variant="outline" onClick={() => setCurrentItem(item)}>
+                              {item.name}
+                          </Button>
+                      ))}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <h3 className="font-semibold">Configure: {currentItem.name}</h3>
+                  <div className="mt-2 space-y-2">
+                    <p className="text-sm font-medium">Select required assemblies:</p>
+                    {currentItem.itemAssemblies.length > 0 ? currentItem.itemAssemblies.map(ia => (
+                      <div key={ia.assembly.id} className="flex items-center space-x-2">
+                        <Checkbox id={`assembly-${ia.assembly.id}`} onCheckedChange={(checked) => {
+                          setCurrentAssemblies(prev => checked ? [...prev, ia.assembly.id] : prev.filter(id => id !== ia.assembly.id));
+                        }}/>
+                        <label htmlFor={`assembly-${ia.assembly.id}`} className="text-sm">{ia.assembly.name}</label>
+                      </div>
+                    )) : <p className="text-sm text-muted-foreground">No assemblies configured for this item.</p>}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+              {dialogStep === 1 && <Button onClick={() => setDialogStep(2)} disabled={!orderNumber}>Add/Configure Items <ArrowRight className="ml-2 h-4 w-4"/></Button>}
+              {dialogStep === 2 && !currentItem && <Button variant="secondary" onClick={() => setDialogStep(1)}>Back to Details</Button>}
+              {dialogStep === 2 && currentItem && <Button variant="secondary" onClick={() => setCurrentItem(null)}>Change Item</Button>}
+              {dialogStep === 2 && currentItem && <Button onClick={handleAddItemToStage}>Add Item to Order</Button>}
+              <Button onClick={resetDialogs} variant="outline">Cancel</Button>
+              {dialogStep === 1 && stagedItems.length > 0 && <Button onClick={handleFormSubmit} disabled={isPending}>{isPending ? "Saving..." : "Save Work Order"}</Button>}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Tabs defaultValue="active">
         <TabsList>
@@ -203,18 +261,25 @@ export function WorkOrdersClient({ initialOrders, allClients, availableItems }: 
           <TabsTrigger value="complete">Complete</TabsTrigger>
         </TabsList>
         <TabsContent value="active">
-            <OrdersTable data={orders.filter(o => o.status !== 'Completed')} />
+            <OrdersTable data={activeOrders} onEdit={handleOpenEditModal} onStatusUpdate={handleStatusUpdate} onDelete={handleDelete} isPending={isPending} />
         </TabsContent>
         <TabsContent value="complete">
-            <OrdersTable data={orders.filter(o => o.status === 'Completed')} />
+            <OrdersTable data={completedOrders} onEdit={handleOpenEditModal} onStatusUpdate={handleStatusUpdate} onDelete={handleDelete} isPending={isPending} />
         </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-// A sub-component for displaying the orders table
-const OrdersTable = ({ data }: { data: OrderWithClient[] }) => (
+interface OrdersTableProps {
+    data: OrderWithDetails[];
+    onEdit: (order: OrderWithDetails) => void;
+    onStatusUpdate: (orderId: number, newStatus: string) => void;
+    onDelete: (orderId: number) => void;
+    isPending: boolean;
+}
+
+const OrdersTable = ({ data, onEdit, onStatusUpdate, onDelete, isPending }: OrdersTableProps) => (
     <div className="border rounded-md">
       <Table>
         <TableHeader>
@@ -223,6 +288,7 @@ const OrdersTable = ({ data }: { data: OrderWithClient[] }) => (
             <TableHead>Customer</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Due Date</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -234,6 +300,20 @@ const OrdersTable = ({ data }: { data: OrderWithClient[] }) => (
                 <TableCell>{order.client?.name || "N/A"}</TableCell>
                 <TableCell>{order.status}</TableCell>
                 <TableCell>{order.dueDate}</TableCell>
+                <TableCell className="text-right">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" disabled={isPending}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                             <DropdownMenuItem onClick={() => onEdit(order)}><Edit className="mr-2 h-4 w-4" /><span>Edit</span></DropdownMenuItem>
+                            {order.status !== 'Completed' ? (
+                                <DropdownMenuItem onClick={() => onStatusUpdate(order.id, 'Completed')}><CheckCircle2 className="mr-2 h-4 w-4" /><span>Mark as Complete</span></DropdownMenuItem>
+                            ) : (
+                                <DropdownMenuItem onClick={() => onStatusUpdate(order.id, 'Planned')}><ArrowRight className="mr-2 h-4 w-4" /><span>Mark as Active</span></DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => onDelete(order.id)} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /><span>Delete</span></DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </TableCell>
             </TableRow>
           ))}
         </TableBody>

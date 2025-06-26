@@ -15,11 +15,22 @@ export default async function OrdersPage() {
     return redirect("/login");
   }
 
-  // Fetch all data needed for the orders page and the "Add" dialog
-  const [allOrders, allClients, allItems] = await Promise.all([
+  // Fetch all data needed for the orders page and the "Add/Edit" dialogs
+  const [allOrders, allClients, availableItems] = await Promise.all([
     db.query.workOrders.findMany({
       with: {
         client: true,
+        // Also fetch the work order items and their details
+        workOrderItems: {
+          with: {
+            item: true,
+            selectedAssemblies: {
+              with: {
+                assembly: true
+              }
+            }
+          }
+        }
       },
       orderBy: (workOrders, { desc }) => [desc(workOrders.createdAt)],
     }),
@@ -43,7 +54,7 @@ export default async function OrdersPage() {
         <WorkOrdersClient 
           initialOrders={allOrders} 
           allClients={allClients} 
-          availableItems={allItems}
+          availableItems={availableItems}
         />
       </div>
     </div>
