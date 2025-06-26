@@ -21,6 +21,8 @@ export default function ProtectedLayout({
               <Link href={"/protected/employees"}>Employees</Link>
               <Link href={"/protected/time-entry"}>Time Entry</Link>
               <Link href={"/protected/time-entry/edit"}>Edit Time Cards</Link>
+              {/* Add the new link here */}
+              <Link href={"/protected/item-builder"}>Item Builder</Link>
             </div>
             
             <div className="flex items-center gap-4">
