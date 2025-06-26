@@ -20,26 +20,30 @@ interface WorkOrdersClientProps {
 }
 
 export function WorkOrdersClient({ initialOrders, allClients }: WorkOrdersClientProps) {
+  const [orders, setOrders] = useState<OrderWithClient[]>(initialOrders);
   const [searchQuery, setSearchQuery] = useState("");
   const [isPending, startTransition] = useTransition();
   const addFormRef = useRef<HTMLFormElement>(null);
 
   const filteredOrders = useMemo(() => {
-    if (!searchQuery) return initialOrders;
-    return initialOrders.filter(order => {
+    if (!searchQuery) return orders;
+    return orders.filter(order => {
       const query = searchQuery.toLowerCase();
       return (
         order.orderNumber.toLowerCase().includes(query) ||
         (order.client && order.client.name.toLowerCase().includes(query))
       );
     });
-  }, [searchQuery, initialOrders]);
-  
+  }, [searchQuery, orders]);
+
   const handleDeleteClick = (orderId: number) => {
     if (window.confirm("Are you sure? This will permanently delete the order and all its time entries.")) {
       startTransition(async () => {
         const result = await deleteWorkOrderAction(orderId);
-        if (!result.success) {
+        if (result.success) {
+          // This will update the UI immediately
+          setOrders(currentOrders => currentOrders.filter(order => order.id !== orderId));
+        } else {
           alert(`Error: ${result.message}`);
         }
       });
@@ -61,6 +65,7 @@ export function WorkOrdersClient({ initialOrders, allClients }: WorkOrdersClient
               const result = await addWorkOrder(formData);
               if (result.success) {
                 addFormRef.current?.reset();
+                // We will rely on revalidation to show the new order
               } else {
                 alert(`Error: ${result.message}`);
               }
