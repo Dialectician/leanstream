@@ -1,3 +1,4 @@
+// app/protected/clients/page.tsx
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ClientsClient } from "@/components/clients-client";
@@ -16,7 +17,8 @@ export default async function ClientsPage() {
   const { data: clients, error } = await supabase
     .from("clients")
     .select("*")
-    .order("name", { ascending: true });
+    .order("lastName", { ascending: true })
+    .order("firstName", { ascending: true });
 
   if (error) {
     console.error("Error fetching clients:", error);

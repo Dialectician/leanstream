@@ -1,21 +1,39 @@
+// app/protected/orders/page.tsx
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { WorkOrdersClient } from "@/components/work-orders-client";
-import type { items, assemblies, itemAssemblies, workOrders, clients, workOrderItems, workOrderItemAssemblies } from "@/lib/db/schema";
+import type {
+  items,
+  assemblies,
+  itemAssemblies,
+  workOrders,
+  clients,
+  workOrderItems,
+  workOrderItemAssemblies,
+} from "@/lib/db/schema";
 
 // Type definitions to match what WorkOrdersClient expects
 type Assembly = typeof assemblies.$inferSelect;
 type ItemWithAssemblies = typeof items.$inferSelect & {
-  itemAssemblies: (typeof itemAssemblies.$inferSelect & { assembly: Assembly })[]
+  itemAssemblies: (typeof itemAssemblies.$inferSelect & {
+    assembly: Assembly;
+  })[];
 };
 type WorkOrderItemWithDetails = typeof workOrderItems.$inferSelect & {
-    item: typeof items.$inferSelect,
-    selectedAssemblies: (typeof workOrderItemAssemblies.$inferSelect & { assembly: Assembly })[]
+  item: typeof items.$inferSelect;
+  selectedAssemblies: (typeof workOrderItemAssemblies.$inferSelect & {
+    assembly: Assembly;
+  })[];
 };
-type OrderWithDetails = typeof workOrders.$inferSelect & { 
-    client: typeof clients.$inferSelect | null,
-    workOrderItems: WorkOrderItemWithDetails[] 
+type OrderWithDetails = typeof workOrders.$inferSelect & {
+  client:
+    | (typeof clients.$inferSelect & {
+        firstName?: string | null;
+        lastName?: string | null;
+      })
+    | null;
+  workOrderItems: WorkOrderItemWithDetails[];
 };
 
 export default async function OrdersPage() {
@@ -54,26 +72,29 @@ export default async function OrdersPage() {
             item: true,
             selectedAssemblies: {
               with: {
-                assembly: true
-              }
-            }
-          }
-        }
+                assembly: true,
+              },
+            },
+          },
+        },
       },
       orderBy: (workOrders, { desc }) => [desc(workOrders.createdAt)],
     }),
     db.query.clients.findMany({
-      orderBy: (clients, { asc }) => [asc(clients.name)],
+      orderBy: (clients, { asc }) => [
+        asc(clients.lastName),
+        asc(clients.firstName),
+      ],
     }),
     db.query.items.findMany({
       with: {
         itemAssemblies: {
           with: {
-            assembly: true
-          }
-        }
-      }
-    })
+            assembly: true,
+          },
+        },
+      },
+    }),
   ]);
 
   // Type assertion to match the expected OrderWithDetails type

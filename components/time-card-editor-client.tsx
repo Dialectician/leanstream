@@ -1,189 +1,737 @@
+// components/time-entry-client.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Trash2 } from "lucide-react";
 
-// Types
-type Employee = { id: number; first_name: string; last_name: string };
-type Order = { id: number; order_number: string };
+// Types for props and state
+type Order = { id: number; order_number: string; client_id: number | null };
+type SimpleOrder = { id: number; order_number: string }; // For editor component
 type Division = { id: number; name: string };
+type Employee = { id: number; first_name: string; last_name: string };
+type Client = {
+  id: number;
+  first_name: string | null;
+  last_name: string | null;
+};
 type TimeEntryRow = {
-  clientId: number; 
-  id: number | null; 
+  id: number;
   work_order_id: string;
   work_division_id: string;
   hours_spent: string;
   notes: string;
 };
+type DisplayEntry = {
+  id: number;
+  date_worked: string;
+  hours_spent: number;
+  notes: string | null;
+  work_orders: { order_number: string }[] | null;
+  work_divisions: { name: string }[] | null;
+  employees: { first_name: string; last_name: string }[] | null;
+};
 
+// Interface for the time card editor (used in edit page)
 interface TimeCardEditorClientProps {
-  employees: Employee[];
-  orders: Order[];
+  orders: SimpleOrder[];
   divisions: Division[];
+  employees: Employee[];
 }
 
-export function TimeCardEditorClient({ employees, orders, divisions }: TimeCardEditorClientProps) {
-  const supabase = createClient();
+// This interface now correctly includes the 'clients' prop
+interface TimeEntryClientProps {
+  orders: Order[];
+  divisions: Division[];
+  employees: Employee[];
+  clients: Client[];
+  initialTimeEntries: DisplayEntry[];
+}
 
-  // State for the lookup form
+export function TimeCardEditorClient({
+  orders,
+  divisions,
+  employees,
+}: TimeCardEditorClientProps) {
+  const supabase = createClient();
+  const [recentEntries, setRecentEntries] = useState<DisplayEntry[]>([]);
+
   const [employeeId, setEmployeeId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-  
-  // State for the data grid
-  const [entryRows, setEntryRows] = useState<TimeEntryRow[]>([]);
+  const [entryRows, setEntryRows] = useState<TimeEntryRow[]>([
+    {
+      id: 1,
+      work_order_id: "",
+      work_division_id: "",
+      hours_spent: "",
+      notes: "",
+    },
+  ]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleLookup = async () => {
+  // Fetch recent entries on component mount
+  useEffect(() => {
+    const fetchRecentEntries = async () => {
+      const { data: newEntries } = await supabase
+        .from("time_entries")
+        .select(
+          `
+          id, date_worked, hours_spent, notes,
+          work_orders!inner(order_number), work_divisions!inner(name), employees!inner(first_name, last_name)
+        `
+        )
+        .order("created_at", { ascending: false })
+        .limit(10);
+      if (newEntries) setRecentEntries(newEntries as DisplayEntry[]);
+    };
+
+    fetchRecentEntries();
+  }, [supabase]);
+
+  const handleRowChange = (
+    index: number,
+    field: keyof TimeEntryRow,
+    value: string
+  ) => {
+    const updatedRows = [...entryRows];
+    updatedRows[index] = { ...updatedRows[index], [field]: value };
+    setEntryRows(updatedRows);
+  };
+
+  const addRow = () => {
+    setEntryRows([
+      ...entryRows,
+      {
+        id: Date.now(),
+        work_order_id: "",
+        work_division_id: "",
+        hours_spent: "",
+        notes: "",
+      },
+    ]);
+  };
+
+  const removeRow = (id: number) => {
+    setEntryRows(entryRows.filter((row) => row.id !== id));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!employeeId || !date) {
       setError("Please select an employee and a date.");
       return;
     }
     setIsLoading(true);
     setError(null);
-    
-    const { data, error } = await supabase
-      .from("time_entries")
-      .select("*")
-      .eq("employee_id", employeeId)
-      .eq("date_worked", date);
 
-    if (error) {
-      setError(error.message);
-    } else {
-      const formattedRows = data.map(entry => ({
-        clientId: entry.id,
-        id: entry.id,
-        work_order_id: String(entry.work_order_id),
-        work_division_id: String(entry.work_division_id),
-        hours_spent: String(entry.hours_spent),
-        notes: entry.notes || "",
-      }));
-      setEntryRows(formattedRows);
-    }
-    setIsLoading(false);
-  };
-
-  const handleRowChange = (clientId: number, field: keyof TimeEntryRow, value: string) => {
-    setEntryRows(
-      entryRows.map(row =>
-        row.clientId === clientId ? { ...row, [field]: value } : row
+    const entriesToInsert = entryRows
+      .filter(
+        (row) => row.work_order_id && row.work_division_id && row.hours_spent
       )
-    );
-  };
-
-  const addRow = () => {
-    setEntryRows([
-      ...entryRows,
-      { clientId: Date.now(), id: null, work_order_id: "", work_division_id: "", hours_spent: "", notes: "" },
-    ]);
-  };
-
-  const removeRow = (clientId: number) => {
-    setEntryRows(entryRows.filter((row) => row.clientId !== clientId));
-  };
-
-  const handleSaveChanges = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    const entriesToSave = entryRows
-      .filter(row => row.work_order_id && row.work_division_id && row.hours_spent)
-      .map(row => ({
-        id: row.id,
+      .map((row) => ({
+        employee_id: parseInt(employeeId),
+        date_worked: date,
         work_order_id: parseInt(row.work_order_id),
         work_division_id: parseInt(row.work_division_id),
         hours_spent: parseFloat(row.hours_spent),
         notes: row.notes,
       }));
 
-    const { error: rpcError } = await supabase.rpc('save_daily_time_card', {
-      p_employee_id: parseInt(employeeId),
-      p_date_worked: date,
-      p_entries: entriesToSave,
-    });
+    if (entriesToInsert.length === 0) {
+      setError("Please fill out at least one valid time entry row.");
+      setIsLoading(false);
+      return;
+    }
 
-    if (rpcError) {
-      setError(rpcError.message);
+    const { error: insertError } = await supabase
+      .from("time_entries")
+      .insert(entriesToInsert);
+
+    if (insertError) {
+      setError(insertError.message);
     } else {
-      alert("Changes saved successfully!");
-      handleLookup();
+      setEntryRows([
+        {
+          id: 1,
+          work_order_id: "",
+          work_division_id: "",
+          hours_spent: "",
+          notes: "",
+        },
+      ]);
+      const { data: newEntries } = await supabase
+        .from("time_entries")
+        .select(
+          `
+          id, date_worked, hours_spent, notes,
+          work_orders!inner(order_number), work_divisions!inner(name), employees!inner(first_name, last_name)
+        `
+        )
+        .order("created_at", { ascending: false })
+        .limit(10);
+      if (newEntries) setRecentEntries(newEntries as DisplayEntry[]);
     }
     setIsLoading(false);
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Time Card Editor</CardTitle>
-        <CardDescription>Look up a time card for a specific employee and date to make changes.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Lookup Form */}
-        <div className="flex flex-wrap gap-4 p-4 border rounded-lg bg-muted/50 items-end">
-            <div className="grid gap-2 flex-grow">
-              <Label htmlFor="employee">Employee</Label>
-              <select id="employee" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} required className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm">
-                <option value="" disabled>Select an employee...</option>
-                {employees.map((emp) => (<option key={emp.id} value={emp.id}>{emp.first_name} {emp.last_name}</option>))}
-              </select>
+    <div className="grid gap-8 lg:grid-cols-3">
+      {/* Form Card */}
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <CardTitle>Time Card Entry</CardTitle>
+          <CardDescription>
+            Select an employee and date, then log hours for multiple orders and
+            divisions.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+            {/* Employee and Date Selection */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="employee">Employee</Label>
+                <select
+                  id="employee"
+                  value={employeeId}
+                  onChange={(e) => setEmployeeId(e.target.value)}
+                  required
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm"
+                >
+                  <option value="" disabled>
+                    Select an employee...
+                  </option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.first_name} {emp.last_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="date">Date Worked</Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  required
+                />
+              </div>
             </div>
-            <div className="grid gap-2 flex-grow">
-              <Label htmlFor="date">Date</Label>
-              <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required/>
-            </div>
-            <Button onClick={handleLookup} disabled={isLoading || !employeeId || !date}>
-                {isLoading ? 'Loading...' : 'Load Time Card'}
-            </Button>
-        </div>
 
-        {/* --- THIS IS THE CORRECTED SECTION --- */}
-        {entryRows.length > 0 && (
-          <div className="space-y-4 border-t pt-6">
-            <h3 className="text-lg font-medium">Editing Time Card</h3>
-             {entryRows.map((row) => (
-                <div key={row.clientId} className="grid grid-cols-1 md:grid-cols-[2fr_2fr_1fr_2fr_auto] gap-2 items-end p-2 border rounded-md">
+            {/* Dynamic Entry Rows */}
+            <div className="space-y-4 border-t pt-4">
+              {entryRows.map((row, index) => (
+                <div
+                  key={row.id}
+                  className="grid grid-cols-1 md:grid-cols-[2fr_2fr_1fr_2fr_auto] gap-2 items-end p-2 border rounded-md"
+                >
                   <div className="grid gap-1">
-                    <Label htmlFor={`order-${row.clientId}`}>Order</Label>
-                    <select id={`order-${row.clientId}`} value={row.work_order_id} onChange={(e) => handleRowChange(row.clientId, "work_order_id", e.target.value)} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm">
-                      <option value="" disabled>Select order...</option>
-                      {orders.map((o) => (<option key={o.id} value={o.id}>{o.order_number}</option>))}
+                    <Label htmlFor={`order-${row.id}`}>Order</Label>
+                    <select
+                      id={`order-${row.id}`}
+                      value={row.work_order_id}
+                      onChange={(e) =>
+                        handleRowChange(index, "work_order_id", e.target.value)
+                      }
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                    >
+                      <option value="" disabled>
+                        Select order...
+                      </option>
+                      {orders.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.order_number}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div className="grid gap-1">
-                    <Label htmlFor={`division-${row.clientId}`}>Division</Label>
-                    <select id={`division-${row.clientId}`} value={row.work_division_id} onChange={(e) => handleRowChange(row.clientId, "work_division_id", e.target.value)} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm">
-                      <option value="" disabled>Select division...</option>
-                      {divisions.map((d) => (<option key={d.id} value={d.id}>{d.name}</option>))}
+                    <Label htmlFor={`division-${row.id}`}>Division</Label>
+                    <select
+                      id={`division-${row.id}`}
+                      value={row.work_division_id}
+                      onChange={(e) =>
+                        handleRowChange(
+                          index,
+                          "work_division_id",
+                          e.target.value
+                        )
+                      }
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                    >
+                      <option value="" disabled>
+                        Select division...
+                      </option>
+                      {divisions.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div className="grid gap-1">
-                    <Label htmlFor={`hours-${row.clientId}`}>Hours</Label>
-                    <Input id={`hours-${row.clientId}`} type="number" step="0.25" placeholder="2.5" value={row.hours_spent} onChange={(e) => handleRowChange(row.clientId, "hours_spent", e.target.value)} />
+                    <Label htmlFor={`hours-${row.id}`}>Hours</Label>
+                    <Input
+                      id={`hours-${row.id}`}
+                      type="number"
+                      step="0.25"
+                      placeholder="2.5"
+                      value={row.hours_spent}
+                      onChange={(e) =>
+                        handleRowChange(index, "hours_spent", e.target.value)
+                      }
+                    />
                   </div>
                   <div className="grid gap-1">
-                    <Label htmlFor={`notes-${row.clientId}`}>Notes</Label>
-                    <Input id={`notes-${row.clientId}`} placeholder="Optional" value={row.notes} onChange={(e) => handleRowChange(row.clientId, "notes", e.target.value)} />
+                    <Label htmlFor={`notes-${row.id}`}>Notes</Label>
+                    <Input
+                      id={`notes-${row.id}`}
+                      placeholder="Optional"
+                      value={row.notes}
+                      onChange={(e) =>
+                        handleRowChange(index, "notes", e.target.value)
+                      }
+                    />
                   </div>
-                  <Button type="button" variant="ghost" size="icon" onClick={() => removeRow(row.clientId)}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeRow(row.id)}
+                    disabled={entryRows.length <= 1}
+                  >
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
               ))}
-            <div className="flex justify-between items-center mt-4">
-              <Button type="button" variant="outline" onClick={addRow}>Add Another Entry</Button>
-              <Button onClick={handleSaveChanges} disabled={isLoading}>{isLoading ? 'Saving...' : 'Save All Changes'}</Button>
             </div>
-          </div>
-        )}
-        
-        {error && <p className="text-sm text-red-500 mt-2">{error}</p>}
-      </CardContent>
-    </Card>
+
+            <div className="flex justify-between items-center mt-4">
+              <Button type="button" variant="outline" onClick={addRow}>
+                Add Another Entry
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Submitting..." : "Submit All Entries"}
+              </Button>
+            </div>
+            {error && <p className="text-sm text-red-500 mt-2">{error}</p>}
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Recent Entries Card */}
+      <Card className="lg:col-span-1">
+        <CardHeader>
+          <CardTitle>Recent Entries</CardTitle>
+          <CardDescription>The last 10 entries logged.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-3">
+            {recentEntries.map((entry) => (
+              <li key={entry.id} className="p-3 border rounded-md text-sm">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="font-semibold">
+                      {entry.employees?.[0]?.first_name}{" "}
+                      {entry.employees?.[0]?.last_name}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {entry.work_orders?.[0]?.order_number} /{" "}
+                      {entry.work_divisions?.[0]?.name}
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-bold">{entry.hours_spent} hrs</p>
+                    <p className="text-xs text-muted-foreground">
+                      {entry.date_worked}
+                    </p>
+                  </div>
+                </div>
+                {entry.notes && (
+                  <p className="text-xs mt-2 pt-2 border-t">{entry.notes}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Export TimeEntryClient for backward compatibility with the main time-entry page
+export function TimeEntryClient({
+  orders,
+  divisions,
+  employees,
+  clients,
+  initialTimeEntries,
+}: TimeEntryClientProps) {
+  const supabase = createClient();
+  const [recentEntries, setRecentEntries] =
+    useState<DisplayEntry[]>(initialTimeEntries);
+
+  // Filter clients to only show those with orders
+  const clientsWithOrders = clients.filter((client) =>
+    orders.some((order) => order.client_id === client.id)
+  );
+
+  // Form state
+  const [employeeId, setEmployeeId] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState("");
+  const [filteredOrders, setFilteredOrders] = useState<Order[]>(orders);
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [entryRows, setEntryRows] = useState<TimeEntryRow[]>([
+    {
+      id: 1,
+      work_order_id: "",
+      work_division_id: "",
+      hours_spent: "",
+      notes: "",
+    },
+  ]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedClientId) {
+      const newFilteredOrders = orders.filter(
+        (o) => o.client_id === Number(selectedClientId)
+      );
+      setFilteredOrders(newFilteredOrders);
+      if (newFilteredOrders.length === 1) {
+        setEntryRows((prevRows) => {
+          const newRows = [...prevRows];
+          if (newRows[0]) {
+            newRows[0].work_order_id = String(newFilteredOrders[0].id);
+          }
+          return newRows;
+        });
+      }
+    } else {
+      setFilteredOrders(orders);
+    }
+  }, [selectedClientId, orders]);
+
+  const handleRowChange = (
+    index: number,
+    field: keyof TimeEntryRow,
+    value: string
+  ) => {
+    const updatedRows = [...entryRows];
+    updatedRows[index] = { ...updatedRows[index], [field]: value };
+    setEntryRows(updatedRows);
+  };
+
+  const addRow = () => {
+    setEntryRows([
+      ...entryRows,
+      {
+        id: Date.now(),
+        work_order_id: "",
+        work_division_id: "",
+        hours_spent: "",
+        notes: "",
+      },
+    ]);
+  };
+
+  const removeRow = (id: number) => {
+    setEntryRows(entryRows.filter((row) => row.id !== id));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!employeeId || !date) {
+      setError("Please select an employee and a date.");
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+
+    const entriesToInsert = entryRows
+      .filter(
+        (row) => row.work_order_id && row.work_division_id && row.hours_spent
+      )
+      .map((row) => ({
+        employee_id: parseInt(employeeId),
+        date_worked: date,
+        work_order_id: parseInt(row.work_order_id),
+        work_division_id: parseInt(row.work_division_id),
+        hours_spent: parseFloat(row.hours_spent),
+        notes: row.notes,
+      }));
+
+    if (entriesToInsert.length === 0) {
+      setError("Please fill out at least one valid time entry row.");
+      setIsLoading(false);
+      return;
+    }
+
+    const { error: insertError } = await supabase
+      .from("time_entries")
+      .insert(entriesToInsert);
+
+    if (insertError) {
+      setError(insertError.message);
+    } else {
+      // Clear form and refetch recent entries for feedback
+      setEntryRows([
+        {
+          id: 1,
+          work_order_id: "",
+          work_division_id: "",
+          hours_spent: "",
+          notes: "",
+        },
+      ]);
+      setSelectedClientId("");
+      const { data: newEntries } = await supabase
+        .from("time_entries")
+        .select(
+          `
+          id, date_worked, hours_spent, notes,
+          work_orders(order_number),
+          work_divisions(name),
+          employees(first_name, last_name)
+        `
+        )
+        .order("created_at", { ascending: false })
+        .limit(10);
+      if (newEntries) setRecentEntries(newEntries as DisplayEntry[]);
+    }
+    setIsLoading(false);
+  };
+
+  return (
+    <div className="grid gap-8 lg:grid-cols-3">
+      {/* Form Card */}
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <CardTitle>Time Card Entry</CardTitle>
+          <CardDescription>
+            Select an employee and date, then log hours for multiple orders and
+            divisions.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+            {/* Employee, Client and Date Selection */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="employee">Employee</Label>
+                <select
+                  id="employee"
+                  value={employeeId}
+                  onChange={(e) => setEmployeeId(e.target.value)}
+                  required
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm"
+                >
+                  <option value="" disabled>
+                    Select an employee...
+                  </option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.first_name} {emp.last_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="client">Client</Label>
+                <select
+                  id="client"
+                  value={selectedClientId}
+                  onChange={(e) => setSelectedClientId(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm"
+                >
+                  <option value="">
+                    {clientsWithOrders.length > 0
+                      ? "Select a client to filter orders..."
+                      : "No clients with active orders found"}
+                  </option>
+                  {clientsWithOrders.map((c) => {
+                    const displayName = `${(c.first_name || "").trim()} ${(
+                      c.last_name || ""
+                    ).trim()}`.trim();
+                    return (
+                      <option key={c.id} value={c.id}>
+                        {displayName || `Client #${c.id}`}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="date">Date Worked</Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Dynamic Entry Rows */}
+            <div className="space-y-4 border-t pt-4">
+              {entryRows.map((row, index) => (
+                <div
+                  key={row.id}
+                  className="grid grid-cols-1 md:grid-cols-[2fr_2fr_1fr_2fr_auto] gap-2 items-end p-2 border rounded-md"
+                >
+                  <div className="grid gap-1">
+                    <Label htmlFor={`order-${row.id}`}>Order</Label>
+                    <select
+                      id={`order-${row.id}`}
+                      value={row.work_order_id}
+                      onChange={(e) =>
+                        handleRowChange(index, "work_order_id", e.target.value)
+                      }
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                    >
+                      <option value="" disabled>
+                        Select order...
+                      </option>
+                      {filteredOrders.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.order_number}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid gap-1">
+                    <Label htmlFor={`division-${row.id}`}>Division</Label>
+                    <select
+                      id={`division-${row.id}`}
+                      value={row.work_division_id}
+                      onChange={(e) =>
+                        handleRowChange(
+                          index,
+                          "work_division_id",
+                          e.target.value
+                        )
+                      }
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                    >
+                      <option value="" disabled>
+                        Select division...
+                      </option>
+                      {divisions.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid gap-1">
+                    <Label htmlFor={`hours-${row.id}`}>Hours</Label>
+                    <Input
+                      id={`hours-${row.id}`}
+                      type="number"
+                      step="0.25"
+                      placeholder="2.5"
+                      value={row.hours_spent}
+                      onChange={(e) =>
+                        handleRowChange(index, "hours_spent", e.target.value)
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-1">
+                    <Label htmlFor={`notes-${row.id}`}>Notes</Label>
+                    <Input
+                      id={`notes-${row.id}`}
+                      placeholder="Optional"
+                      value={row.notes}
+                      onChange={(e) =>
+                        handleRowChange(index, "notes", e.target.value)
+                      }
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeRow(row.id)}
+                    disabled={entryRows.length <= 1}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-between items-center mt-4">
+              <Button type="button" variant="outline" onClick={addRow}>
+                Add Another Entry
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Submitting..." : "Submit All Entries"}
+              </Button>
+            </div>
+            {error && <p className="text-sm text-red-500 mt-2">{error}</p>}
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Recent Entries Card */}
+      <Card className="lg:col-span-1">
+        <CardHeader>
+          <CardTitle>Recent Entries</CardTitle>
+          <CardDescription>The last 10 entries logged.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {recentEntries.length > 0 ? (
+            <ul className="space-y-3">
+              {recentEntries.map((entry) => (
+                <li key={entry.id} className="p-3 border rounded-md text-sm">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <p className="font-semibold">
+                        {entry.employees?.[0]?.first_name}{" "}
+                        {entry.employees?.[0]?.last_name}
+                      </p>
+                      <p className="text-muted-foreground">
+                        Order: {entry.work_orders?.[0]?.order_number}
+                      </p>
+                      <p className="text-muted-foreground">
+                        Division: {entry.work_divisions?.[0]?.name}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="font-bold">{entry.hours_spent} hrs</p>
+                      <p className="text-xs text-muted-foreground">
+                        {entry.date_worked}
+                      </p>
+                    </div>
+                  </div>
+                  {entry.notes && (
+                    <p className="text-xs mt-2 pt-2 border-t">{entry.notes}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              No recent entries found.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

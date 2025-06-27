@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,9 +15,14 @@ import {
 import { Trash2 } from "lucide-react";
 
 // Types for props and state
-type Order = { id: number; order_number: string };
+type Order = { id: number; order_number: string; client_id: number | null };
 type Division = { id: number; name: string };
 type Employee = { id: number; first_name: string; last_name: string };
+type Client = {
+  id: number;
+  first_name: string | null;
+  last_name: string | null;
+};
 type TimeEntryRow = {
   id: number;
   work_order_id: string;
@@ -39,6 +44,7 @@ interface TimeEntryClientProps {
   orders: Order[];
   divisions: Division[];
   employees: Employee[];
+  clients: Client[];
   initialTimeEntries: DisplayEntry[];
 }
 
@@ -46,14 +52,22 @@ export function TimeEntryClient({
   orders,
   divisions,
   employees,
+  clients,
   initialTimeEntries,
 }: TimeEntryClientProps) {
   const supabase = createClient();
   const [recentEntries, setRecentEntries] =
     useState<DisplayEntry[]>(initialTimeEntries);
 
+  // Filter clients to only show those with orders
+  const clientsWithOrders = clients.filter((client) =>
+    orders.some((order) => order.client_id === client.id)
+  );
+
   // Form state
   const [employeeId, setEmployeeId] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState("");
+  const [filteredOrders, setFilteredOrders] = useState<Order[]>(orders);
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [entryRows, setEntryRows] = useState<TimeEntryRow[]>([
     {
@@ -66,6 +80,26 @@ export function TimeEntryClient({
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedClientId) {
+      const newFilteredOrders = orders.filter(
+        (o) => o.client_id === Number(selectedClientId)
+      );
+      setFilteredOrders(newFilteredOrders);
+      if (newFilteredOrders.length === 1) {
+        setEntryRows((prevRows) => {
+          const newRows = [...prevRows];
+          if (newRows[0]) {
+            newRows[0].work_order_id = String(newFilteredOrders[0].id);
+          }
+          return newRows;
+        });
+      }
+    } else {
+      setFilteredOrders(orders);
+    }
+  }, [selectedClientId, orders]);
 
   const handleRowChange = (
     index: number,
@@ -139,12 +173,15 @@ export function TimeEntryClient({
           notes: "",
         },
       ]);
+      setSelectedClientId("");
       const { data: newEntries } = await supabase
         .from("time_entries")
         .select(
           `
           id, date_worked, hours_spent, notes,
-          work_orders (order_number), work_divisions (name), employees (first_name, last_name)
+          work_orders(order_number),
+          work_divisions(name),
+          employees(first_name, last_name)
         `
         )
         .order("created_at", { ascending: false })
@@ -167,8 +204,8 @@ export function TimeEntryClient({
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-            {/* Employee and Date Selection */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Employee, Client and Date Selection */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="employee">Employee</Label>
                 <select
@@ -186,6 +223,31 @@ export function TimeEntryClient({
                       {emp.first_name} {emp.last_name}
                     </option>
                   ))}
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="client">Client</Label>
+                <select
+                  id="client"
+                  value={selectedClientId}
+                  onChange={(e) => setSelectedClientId(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm"
+                >
+                  <option value="">
+                    {clientsWithOrders.length > 0
+                      ? "Select a client to filter orders..."
+                      : "No clients with active orders found"}
+                  </option>
+                  {clientsWithOrders.map((c) => {
+                    const displayName = `${(c.first_name || "").trim()} ${(
+                      c.last_name || ""
+                    ).trim()}`.trim();
+                    return (
+                      <option key={c.id} value={c.id}>
+                        {displayName || `Client #${c.id}`}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
               <div className="grid gap-2">
@@ -220,7 +282,7 @@ export function TimeEntryClient({
                       <option value="" disabled>
                         Select order...
                       </option>
-                      {orders.map((o) => (
+                      {filteredOrders.map((o) => (
                         <option key={o.id} value={o.id}>
                           {o.order_number}
                         </option>
@@ -308,32 +370,45 @@ export function TimeEntryClient({
           <CardDescription>The last 10 entries logged.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ul className="space-y-3">
-            {recentEntries.map((entry) => (
-              <li key={entry.id} className="p-3 border rounded-md text-sm">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-semibold">
-                      {entry.employees?.[0]?.first_name} {entry.employees?.[0]?.last_name}
-                    </p>
-                    <p className="text-muted-foreground">
-                      {entry.work_orders?.[0]?.order_number} /{" "}
-                      {entry.work_divisions?.[0]?.name}
-                    </p>
+          {recentEntries.length > 0 ? (
+            <ul className="space-y-3">
+              {recentEntries.map((entry) => (
+                <li key={entry.id} className="p-3 border rounded-md text-sm">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <p className="font-semibold">
+                        {entry.employees?.[0]?.first_name}{" "}
+                        {entry.employees?.[0]?.last_name}
+                      </p>
+                      <p className="text-muted-foreground">
+                        Order: {entry.work_orders?.[0]?.order_number}
+                      </p>
+                      <p className="text-muted-foreground">
+                        Division: {entry.work_divisions?.[0]?.name}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="font-bold text-lg">
+                        {entry.hours_spent} hrs
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(entry.date_worked).toLocaleDateString()}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="font-bold">{entry.hours_spent} hrs</p>
-                    <p className="text-xs text-muted-foreground">
-                      {entry.date_worked}
+                  {entry.notes && (
+                    <p className="text-xs mt-2 pt-2 border-t text-muted-foreground">
+                      <span className="font-medium">Notes:</span> {entry.notes}
                     </p>
-                  </div>
-                </div>
-                {entry.notes && (
-                  <p className="text-xs mt-2 pt-2 border-t">{entry.notes}</p>
-                )}
-              </li>
-            ))}
-          </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted-foreground text-center py-4">
+              No recent entries found.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

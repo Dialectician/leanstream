@@ -1,95 +1,148 @@
 import { relations } from "drizzle-orm";
-import { pgTable, bigserial, text, integer, date, numeric, boolean, timestamp, bigint } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  bigserial,
+  text,
+  integer,
+  date,
+  numeric,
+  boolean,
+  timestamp,
+  bigint,
+} from "drizzle-orm/pg-core";
 
 // --- CORE TABLES ---
 
 export const clients = pgTable("clients", {
-    id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
-    name: text("name").notNull(),
-    contactPerson: text("contact_person"),
-    email: text("email"),
-    phone: text("phone"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  contactPerson: text("contact_person"),
+  email: text("email"),
+  phone: text("phone"),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+    mode: "string",
+  }).defaultNow(),
 });
 
 export const employees = pgTable("employees", {
-    id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
-    firstName: text("first_name"),
-    lastName: text("last_name"),
-    ratePerHour: numeric("rate_per_hour", { precision: 10, scale: 2 }),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  ratePerHour: numeric("rate_per_hour", { precision: 10, scale: 2 }),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+    mode: "string",
+  }).defaultNow(),
 });
 
 export const workDivisions = pgTable("work_divisions", {
-    id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
-    name: text("name").notNull(),
-    parentDivisionId: bigint("parent_division_id", { mode: "number" }),
-    description: text("description"),
-    isActive: boolean("is_active").default(true),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  name: text("name").notNull(),
+  parentDivisionId: bigint("parent_division_id", { mode: "number" }),
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+    mode: "string",
+  }).defaultNow(),
 });
 
 export const workOrders = pgTable("work_orders", {
-    id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
-    orderNumber: text("order_number").notNull(),
-    quantity: integer("quantity"),
-    startDate: date("start_date"),
-    // This is the line that was missing
-    dueDate: date("due_date"),
-    status: text("status").default('Planned'),
-    notes: text("notes"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
-    clientId: bigint("client_id", { mode: "number" }).references(() => clients.id, { onDelete: "set null" }),
-    trelloLink: text("trello_link"),
-    fusionLink: text("fusion_link"),
-    katanaLink: text("katana_link"),
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  orderNumber: text("order_number").notNull(),
+  quantity: integer("quantity"),
+  startDate: date("start_date"),
+  // This is the line that was missing
+  dueDate: date("due_date"),
+  status: text("status").default("Planned"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+    mode: "string",
+  }).defaultNow(),
+  clientId: bigint("client_id", { mode: "number" }).references(
+    () => clients.id,
+    { onDelete: "set null" }
+  ),
+  trelloLink: text("trello_link"),
+  fusionLink: text("fusion_link"),
+  katanaLink: text("katana_link"),
 });
 
 export const timeEntries = pgTable("time_entries", {
-    id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
-    workOrderId: bigint("work_order_id", { mode: "number" }).notNull().references(() => workOrders.id, { onDelete: "cascade" }),
-    workDivisionId: bigint("work_division_id", { mode: "number" }).notNull().references(() => workDivisions.id, { onDelete: "cascade" }),
-    employeeId: bigint("employee_id", { mode: "number" }).notNull().references(() => employees.id, { onDelete: "cascade" }),
-    dateWorked: date("date_worked").notNull(),
-    hoursSpent: numeric("hours_spent", { precision: 5, scale: 2 }).notNull(),
-    notes: text("notes"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  workOrderId: bigint("work_order_id", { mode: "number" })
+    .notNull()
+    .references(() => workOrders.id, { onDelete: "cascade" }),
+  workDivisionId: bigint("work_division_id", { mode: "number" })
+    .notNull()
+    .references(() => workDivisions.id, { onDelete: "cascade" }),
+  employeeId: bigint("employee_id", { mode: "number" })
+    .notNull()
+    .references(() => employees.id, { onDelete: "cascade" }),
+  dateWorked: date("date_worked").notNull(),
+  hoursSpent: numeric("hours_spent", { precision: 5, scale: 2 }).notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+    mode: "string",
+  }).defaultNow(),
 });
 
 // --- ITEM & ASSEMBLY TABLES ---
 
 export const items = pgTable("items", {
-    id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
-    name: text("name").notNull(),
-    description: text("description"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+    mode: "string",
+  }).defaultNow(),
 });
 
 export const assemblies = pgTable("assemblies", {
-    id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
-    name: text("name").notNull(),
-    description: text("description"),
-    parentAssemblyId: bigint("parent_assembly_id", { mode: "number" }),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  parentAssemblyId: bigint("parent_assembly_id", { mode: "number" }),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+    mode: "string",
+  }).defaultNow(),
 });
 
 export const itemAssemblies = pgTable("item_assemblies", {
-    id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
-    itemId: bigint("item_id", { mode: "number" }).notNull().references(() => items.id, { onDelete: "cascade" }),
-    assemblyId: bigint("assembly_id", { mode: "number" }).notNull().references(() => assemblies.id, { onDelete: "cascade" }),
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  itemId: bigint("item_id", { mode: "number" })
+    .notNull()
+    .references(() => items.id, { onDelete: "cascade" }),
+  assemblyId: bigint("assembly_id", { mode: "number" })
+    .notNull()
+    .references(() => assemblies.id, { onDelete: "cascade" }),
 });
 
 export const workOrderItems = pgTable("work_order_items", {
-    id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
-    workOrderId: bigint("work_order_id", { mode: "number" }).notNull().references(() => workOrders.id, { onDelete: "cascade" }),
-    itemId: bigint("item_id", { mode: "number" }).notNull().references(() => items.id, { onDelete: "restrict" }),
-    quantity: integer("quantity").notNull().default(1),
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  workOrderId: bigint("work_order_id", { mode: "number" })
+    .notNull()
+    .references(() => workOrders.id, { onDelete: "cascade" }),
+  itemId: bigint("item_id", { mode: "number" })
+    .notNull()
+    .references(() => items.id, { onDelete: "restrict" }),
+  quantity: integer("quantity").notNull().default(1),
 });
 
 export const workOrderItemAssemblies = pgTable("work_order_item_assemblies", {
-    id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
-    workOrderItemId: bigint("work_order_item_id", { mode: "number" }).notNull().references(() => workOrderItems.id, { onDelete: "cascade" }),
-    assemblyId: bigint("assembly_id", { mode: "number" }).notNull().references(() => assemblies.id, { onDelete: "restrict" }),
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  workOrderItemId: bigint("work_order_item_id", { mode: "number" })
+    .notNull()
+    .references(() => workOrderItems.id, { onDelete: "cascade" }),
+  assemblyId: bigint("assembly_id", { mode: "number" })
+    .notNull()
+    .references(() => assemblies.id, { onDelete: "restrict" }),
 });
 
 // =================================================================
@@ -101,34 +154,37 @@ export const clientsRelations = relations(clients, ({ many }) => ({
 }));
 
 export const employeesRelations = relations(employees, ({ many }) => ({
-    timeEntries: many(timeEntries),
+  timeEntries: many(timeEntries),
 }));
 
-export const workDivisionsRelations = relations(workDivisions, ({ one, many }) => ({
+export const workDivisionsRelations = relations(
+  workDivisions,
+  ({ one, many }) => ({
     timeEntries: many(timeEntries),
     parentDivision: one(workDivisions, {
-        fields: [workDivisions.parentDivisionId],
-        references: [workDivisions.id],
-        relationName: 'parent_division'
+      fields: [workDivisions.parentDivisionId],
+      references: [workDivisions.id],
+      relationName: "parent_division",
     }),
     childDivisions: many(workDivisions, {
-        relationName: 'parent_division'
-    })
-}));
+      relationName: "parent_division",
+    }),
+  })
+);
 
 export const timeEntriesRelations = relations(timeEntries, ({ one }) => ({
-    employee: one(employees, {
-        fields: [timeEntries.employeeId],
-        references: [employees.id],
-    }),
-    workOrder: one(workOrders, {
-        fields: [timeEntries.workOrderId],
-        references: [workOrders.id],
-    }),
-    workDivision: one(workDivisions, {
-        fields: [timeEntries.workDivisionId],
-        references: [workDivisions.id],
-    }),
+  employee: one(employees, {
+    fields: [timeEntries.employeeId],
+    references: [employees.id],
+  }),
+  workOrder: one(workOrders, {
+    fields: [timeEntries.workOrderId],
+    references: [workOrders.id],
+  }),
+  workDivision: one(workDivisions, {
+    fields: [timeEntries.workDivisionId],
+    references: [workDivisions.id],
+  }),
 }));
 
 export const workOrdersRelations = relations(workOrders, ({ one, many }) => ({
@@ -150,10 +206,10 @@ export const assembliesRelations = relations(assemblies, ({ one, many }) => ({
   parentAssembly: one(assemblies, {
     fields: [assemblies.parentAssemblyId],
     references: [assemblies.id],
-    relationName: "parentAssembly"
+    relationName: "parentAssembly",
   }),
   childAssemblies: many(assemblies, {
-    relationName: "parentAssembly"
+    relationName: "parentAssembly",
   }),
   workOrderItemSelections: many(workOrderItemAssemblies),
 }));
@@ -169,25 +225,31 @@ export const itemAssembliesRelations = relations(itemAssemblies, ({ one }) => ({
   }),
 }));
 
-export const workOrderItemsRelations = relations(workOrderItems, ({ one, many }) => ({
-  workOrder: one(workOrders, {
-    fields: [workOrderItems.workOrderId],
-    references: [workOrders.id],
-  }),
-  item: one(items, {
-    fields: [workOrderItems.itemId],
-    references: [items.id],
-  }),
-  selectedAssemblies: many(workOrderItemAssemblies),
-}));
+export const workOrderItemsRelations = relations(
+  workOrderItems,
+  ({ one, many }) => ({
+    workOrder: one(workOrders, {
+      fields: [workOrderItems.workOrderId],
+      references: [workOrders.id],
+    }),
+    item: one(items, {
+      fields: [workOrderItems.itemId],
+      references: [items.id],
+    }),
+    selectedAssemblies: many(workOrderItemAssemblies),
+  })
+);
 
-export const workOrderItemAssembliesRelations = relations(workOrderItemAssemblies, ({ one }) => ({
+export const workOrderItemAssembliesRelations = relations(
+  workOrderItemAssemblies,
+  ({ one }) => ({
     workOrderItem: one(workOrderItems, {
-        fields: [workOrderItemAssemblies.workOrderItemId],
-        references: [workOrderItems.id],
+      fields: [workOrderItemAssemblies.workOrderItemId],
+      references: [workOrderItems.id],
     }),
     assembly: one(assemblies, {
-        fields: [workOrderItemAssemblies.assemblyId],
-        references: [assemblies.id],
-    })
-}));
+      fields: [workOrderItemAssemblies.assemblyId],
+      references: [assemblies.id],
+    }),
+  })
+);
