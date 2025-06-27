@@ -34,12 +34,12 @@ import { Trello, Link as LinkIcon, CaseUpper } from "lucide-react";
 export default async function OrderDetailsPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   console.log("OrderDetailsPage params:", params);
 
   const supabase = await createClient();
-  const { id } = params;
+  const { id } = await params; // Await the params promise
 
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
