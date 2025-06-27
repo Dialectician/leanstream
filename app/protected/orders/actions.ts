@@ -10,6 +10,7 @@ export async function createWorkOrderWithItems(formData: FormData) {
     orderNumber: formData.get('orderNumber') as string,
     clientId: formData.get('clientId') ? Number(formData.get('clientId')) : null,
     items: JSON.parse(formData.get('items') as string) as { itemId: number; quantity: number; selectedAssemblies: number[] }[],
+    dueDate: formData.get('dueDate') as string | null,
     trelloLink: formData.get('trelloLink') as string | null,
     fusionLink: formData.get('fusionLink') as string | null,
     katanaLink: formData.get('katanaLink') as string | null,
@@ -24,6 +25,7 @@ export async function createWorkOrderWithItems(formData: FormData) {
       orderNumber: rawFormData.orderNumber,
       clientId: rawFormData.clientId,
       status: 'Planned',
+      dueDate: rawFormData.dueDate || null,
       trelloLink: rawFormData.trelloLink,
       fusionLink: rawFormData.fusionLink,
       katanaLink: rawFormData.katanaLink,
@@ -47,9 +49,9 @@ export async function createWorkOrderWithItems(formData: FormData) {
 
     revalidatePath("/protected/orders");
     return { success: true, message: "Work order created successfully." };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error creating work order:", error);
-    return { success: false, message: `Failed to create work order: ${error.message}` };
+    return { success: false, message: `Failed to create work order: ${(error as Error).message}` };
   }
 }
 
@@ -59,6 +61,7 @@ export async function updateWorkOrder(orderId: number, formData: FormData) {
     clientId: formData.get('clientId') ? Number(formData.get('clientId')) : null,
     status: formData.get('status') as string,
     items: JSON.parse(formData.get('items') as string) as { itemId: number; quantity: number; selectedAssemblies: number[] }[],
+    dueDate: formData.get('dueDate') as string | null,
     trelloLink: formData.get('trelloLink') as string | null,
     fusionLink: formData.get('fusionLink') as string | null,
     katanaLink: formData.get('katanaLink') as string | null,
@@ -73,6 +76,7 @@ export async function updateWorkOrder(orderId: number, formData: FormData) {
         orderNumber: rawFormData.orderNumber,
         clientId: rawFormData.clientId,
         status: rawFormData.status,
+        dueDate: rawFormData.dueDate || null,
         trelloLink: rawFormData.trelloLink,
         fusionLink: rawFormData.fusionLink,
         katanaLink: rawFormData.katanaLink,
@@ -104,9 +108,9 @@ export async function updateWorkOrder(orderId: number, formData: FormData) {
 
     return { success: true, message: "Work order updated successfully.", data: updatedOrder };
 
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error updating work order:", error);
-    return { success: false, message: `Failed to update work order: ${error.message}` };
+    return { success: false, message: `Failed to update work order: ${(error as Error).message}` };
   }
 }
 
@@ -124,8 +128,8 @@ export async function updateWorkOrderStatus(orderId: number, newStatus: string) 
 
     revalidatePath("/protected/orders");
     return { success: true, message: "Order status updated.", data: updatedOrder };
-  } catch (error: any) {
-    return { success: false, message: `Failed to update status: ${error.message}` };
+  } catch (error) {
+    return { success: false, message: `Failed to update status: ${(error as Error).message}` };
   }
 }
 
@@ -138,8 +142,8 @@ export async function deleteWorkOrderAction(orderId: number) {
     await db.delete(workOrders).where(eq(workOrders.id, orderId));
     revalidatePath("/protected/orders");
     return { success: true, message: "Order deleted successfully." };
-  } catch (error: any) {
+  } catch (error) {
       console.error("Error deleting work order:", error);
-      return { success: false, message: `Failed to delete order: ${error.message}` };
+      return { success: false, message: `Failed to delete order: ${(error as Error).message}` };
   }
 }

@@ -32,6 +32,3 @@ export const employeesRelations = relations(employees, ({many}) => ({
 	timeEntries: many(timeEntries),
 }));
 
-export const workOrdersRelations = relations(workOrders, ({many}) => ({
-	timeEntries: many(timeEntries),
-}));

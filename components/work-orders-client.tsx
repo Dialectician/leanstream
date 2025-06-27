@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -55,6 +55,7 @@ export function WorkOrdersClient({ initialOrders, allClients, availableItems }: 
   const [dialogStep, setDialogStep] = useState(1);
   const [orderNumber, setOrderNumber] = useState("");
   const [clientId, setClientId] = useState<number | null>(null);
+  const [dueDate, setDueDate] = useState("");
   const [trelloLink, setTrelloLink] = useState("");
   const [fusionLink, setFusionLink] = useState("");
   const [katanaLink, setKatanaLink] = useState("");
@@ -67,6 +68,7 @@ export function WorkOrdersClient({ initialOrders, allClients, availableItems }: 
     if (editingOrder) {
       setOrderNumber(editingOrder.orderNumber);
       setClientId(editingOrder.clientId);
+      setDueDate(editingOrder.dueDate ?? "");
       setTrelloLink(editingOrder.trelloLink ?? "");
       setFusionLink(editingOrder.fusionLink ?? "");
       setKatanaLink(editingOrder.katanaLink ?? "");
@@ -84,6 +86,7 @@ export function WorkOrdersClient({ initialOrders, allClients, availableItems }: 
     setDialogStep(1);
     setOrderNumber("");
     setClientId(null);
+    setDueDate("");
     setTrelloLink("");
     setFusionLink("");
     setKatanaLink("");
@@ -135,6 +138,7 @@ export function WorkOrdersClient({ initialOrders, allClients, availableItems }: 
     formData.append('clientId', String(clientId));
     formData.append('status', editingOrder?.status ?? 'Planned');
     formData.append('items', JSON.stringify(stagedItems));
+    formData.append('dueDate', dueDate);
     formData.append('trelloLink', trelloLink);
     formData.append('fusionLink', fusionLink);
     formData.append('katanaLink', katanaLink);
@@ -208,6 +212,7 @@ export function WorkOrdersClient({ initialOrders, allClients, availableItems }: 
                     {allClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
+                <div className="grid gap-2"><Label>Due Date</Label><Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></div>
                 <div className="grid gap-2"><Label>Trello Link</Label><Input value={trelloLink} onChange={(e) => setTrelloLink(e.target.value)} placeholder="https://trello.com/..." /></div>
                 <div className="grid gap-2"><Label>Fusion 360 Link</Label><Input value={fusionLink} onChange={(e) => setFusionLink(e.target.value)} placeholder="https://fusion360.autodesk.com/..." /></div>
                 <div className="grid gap-2"><Label>Katana Link</Label><Input value={katanaLink} onChange={(e) => setKatanaLink(e.target.value)} placeholder="https://katanamrp.com/..." /></div>

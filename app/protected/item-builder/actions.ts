@@ -23,8 +23,8 @@ export async function addItem(formData: FormData) {
     const [newItem] = await db.insert(items).values(newItemData).returning();
     revalidatePath("/protected/item-builder");
     return { success: true, message: "Item added successfully.", data: newItem };
-  } catch (error: any) {
-    return { success: false, message: error.message, data: null };
+  } catch (error) {
+    return { success: false, message: (error as Error).message, data: null };
   }
 }
 
@@ -57,8 +57,8 @@ export async function addAssembly(formData: FormData) {
 
     revalidatePath("/protected/item-builder");
     return { success: true, message: "Assembly added successfully.", data: newAssemblyWithParent };
-  } catch (error: any) {
-    return { success: false, message: error.message, data: null };
+  } catch (error) {
+    return { success: false, message: (error as Error).message, data: null };
   }
 }
 
@@ -75,11 +75,11 @@ export async function associateAssemblyWithItem(itemId: number, assemblyId: numb
     await db.insert(itemAssemblies).values({ itemId, assemblyId });
     revalidatePath("/protected/item-builder");
     return { success: true, message: "Assembly associated successfully." };
-  } catch (error: any) {
+  } catch (error) {
     // Handle potential unique constraint errors, e.g., if the link already exists
-    if (error.code === '23505') { // unique_violation
+    if (error && typeof error === 'object' && 'code' in error && error.code === '23505') { // unique_violation
         return { success: false, message: "This assembly is already associated with this item."};
     }
-    return { success: false, message: error.message };
+    return { success: false, message: (error as Error).message };
   }
 }

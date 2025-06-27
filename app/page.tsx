@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { desc, eq, not } from "drizzle-orm";
+import { desc, not, eq } from "drizzle-orm";
 import { timeEntries, workOrders } from "@/lib/db/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
@@ -41,7 +41,7 @@ export default async function ProtectedPage() {
     <div className="flex-1 w-full flex flex-col gap-8">
       <div>
         <h1 className="text-2xl font-bold">Welcome, {user.email}</h1>
-        <p className="text-muted-foreground">Here's a quick overview of your operations.</p>
+        <p className="text-muted-foreground">Here&apos;s a quick overview of your operations.</p>
       </div>
 
       <div className="grid gap-8 md:grid-cols-2">

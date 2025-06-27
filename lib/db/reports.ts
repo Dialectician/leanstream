@@ -1,11 +1,11 @@
 import { db } from "@/lib/db";
 import { desc } from "drizzle-orm";
 
-export type OrderReportData = {
+export type ReportData = {
     orderNumber: string;
     clientName: string | null;
-    totalHours: number;
     divisionHours: { [key: string]: number };
+    totalHours: number;
     products: {
         name: string;
         assemblies: string[];
@@ -13,9 +13,9 @@ export type OrderReportData = {
     }[];
 };
 
-export async function getOrderReportData(): Promise<OrderReportData[]> {
+export async function getOrderReportData(): Promise<ReportData[]> {
     const orders = await db.query.workOrders.findMany({
-        orderBy: (workOrders, { desc }) => [desc(workOrders.createdAt)],
+        orderBy: (workOrders) => [desc(workOrders.createdAt)],
         with: {
             client: true,
             workOrderItems: {

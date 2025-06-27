@@ -3,6 +3,13 @@ import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { ItemBuilderClient } from "@/components/item-builder-client";
 import { desc } from "drizzle-orm";
+import { items, assemblies, itemAssemblies } from "@/lib/db/schema";
+
+// Types to match the component expectations
+type AssemblyWithParent = typeof assemblies.$inferSelect & { parentAssembly?: { name: string } | null };
+type ItemWithAssemblies = typeof items.$inferSelect & {
+  itemAssemblies: (typeof itemAssemblies.$inferSelect & { assembly: AssemblyWithParent })[]
+};
 
 export default async function ItemBuilderPage() {
   const supabase = await createClient();
@@ -29,7 +36,7 @@ export default async function ItemBuilderPage() {
         }
       }
     }
-  });
+  }) as ItemWithAssemblies[];
 
   const allAssemblies = await db.query.assemblies.findMany({
     orderBy: (assemblies) => [desc(assemblies.createdAt)],
@@ -40,7 +47,7 @@ export default async function ItemBuilderPage() {
         },
       },
     },
-  });
+  }) as AssemblyWithParent[];
 
   return (
     <div className="flex-1 w-full flex flex-col gap-8 items-center">

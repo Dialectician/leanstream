@@ -1,18 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState, useMemo } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import type { OrderReportData } from "@/lib/db/reports";
 
-interface ReportsClientProps {
-  initialOrderReportData: OrderReportData[];
-}
-
 // Function to convert array of objects to CSV
-const convertToCSV = (data: any[], headers: { key: string, label: string }[]) => {
+const convertToCSV = (data: Record<string, any>[], headers: { key: string, label: string }[]) => {
     const headerRow = headers.map(h => h.label).join(',');
     const bodyRows = data.map(row => {
         return headers.map(header => {
@@ -74,7 +70,7 @@ export function ReportsClient({ initialOrderReportData }: { initialOrderReportDa
     const filteredReportData = useMemo(() => {
         return reportData.filter(order => {
             const productMatch = !productFilter || order.products.some(p => p.name === productFilter);
-            const assemblyMatch = !assemblyFilter || order.products.some(p => 
+            const assemblyMatch = !assemblyFilter || order.products.some(p =>
                 p.assemblies.includes(assemblyFilter) || p.subAssemblies.includes(assemblyFilter)
             );
             return productMatch && assemblyMatch;
@@ -114,7 +110,7 @@ export function ReportsClient({ initialOrderReportData }: { initialOrderReportDa
                 divisionHours: JSON.stringify(order.divisionHours)
             }));
         });
-        
+
         const csv = convertToCSV(flattenedData, headers);
         downloadCSV(csv, 'order_report.csv');
     };

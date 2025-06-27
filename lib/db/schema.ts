@@ -20,10 +20,10 @@ export const employees = pgTable("employees", {
     createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 });
 
-export const workDivisions = pgTable("work_divisions", {
+export const workDivisions: any = pgTable("work_divisions", {
     id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
     name: text("name").notNull(),
-    parentDivisionId: bigint("parent_division_id", { mode: "number" }).references(() => workDivisions.id, { onDelete: "set null" }),
+    parentDivisionId: bigint("parent_division_id", { mode: "number" }).references((): any => workDivisions.id, { onDelete: "set null" }),
     description: text("description"),
     isActive: boolean("is_active").default(true),
     createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
@@ -32,6 +32,10 @@ export const workDivisions = pgTable("work_divisions", {
 export const workOrders = pgTable("work_orders", {
     id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
     orderNumber: text("order_number").notNull(),
+    quantity: integer("quantity"),
+    startDate: date("start_date"),
+    // This is the line that was missing
+    dueDate: date("due_date"),
     status: text("status").default('Planned'),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
@@ -61,11 +65,11 @@ export const items = pgTable("items", {
     createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 });
 
-export const assemblies = pgTable("assemblies", {
+export const assemblies: any = pgTable("assemblies", {
     id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
     name: text("name").notNull(),
     description: text("description"),
-    parentAssemblyId: bigint("parent_assembly_id", { mode: "number" }).references(() => assemblies.id, { onDelete: "set null" }),
+    parentAssemblyId: bigint("parent_assembly_id", { mode: "number" }).references((): any => assemblies.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 });
 

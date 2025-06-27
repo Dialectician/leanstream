@@ -69,7 +69,7 @@ export function TimeCardEditorClient({ employees, orders, divisions }: TimeCardE
     setIsLoading(false);
   };
 
-  const handleRowChange = (clientId: number, field: keyof TimeEntryRow, value: any) => {
+  const handleRowChange = (clientId: number, field: keyof TimeEntryRow, value: string) => {
     setEntryRows(
       entryRows.map(row =>
         row.clientId === clientId ? { ...row, [field]: value } : row
@@ -146,7 +146,7 @@ export function TimeCardEditorClient({ employees, orders, divisions }: TimeCardE
         {entryRows.length > 0 && (
           <div className="space-y-4 border-t pt-6">
             <h3 className="text-lg font-medium">Editing Time Card</h3>
-             {entryRows.map((row, index) => (
+             {entryRows.map((row) => (
                 <div key={row.clientId} className="grid grid-cols-1 md:grid-cols-[2fr_2fr_1fr_2fr_auto] gap-2 items-end p-2 border rounded-md">
                   <div className="grid gap-1">
                     <Label htmlFor={`order-${row.clientId}`}>Order</Label>
