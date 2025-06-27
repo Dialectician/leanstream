@@ -2,9 +2,25 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { desc, not, eq } from "drizzle-orm";
-import { timeEntries, workOrders } from "@/lib/db/schema";
+import { timeEntries, workOrders, clients, employees, workDivisions } from "@/lib/db/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
+
+// Type definitions for the queries
+type ClientType = typeof clients.$inferSelect;
+type EmployeeType = typeof employees.$inferSelect;
+type WorkDivisionType = typeof workDivisions.$inferSelect;
+type WorkOrderType = typeof workOrders.$inferSelect;
+
+type WorkOrderWithClient = typeof workOrders.$inferSelect & {
+  client: ClientType | null;
+};
+
+type TimeEntryWithRelations = typeof timeEntries.$inferSelect & {
+  employee: EmployeeType | null;
+  workOrder: WorkOrderType | null;
+  workDivision: WorkDivisionType | null;
+};
 
 export default async function ProtectedPage() {
   const supabase = await createClient();
@@ -20,22 +36,63 @@ export default async function ProtectedPage() {
   // Fetch recent time entries with related data using Drizzle
   const recentTimeEntries = await db.query.timeEntries.findMany({
     with: {
-      workOrder: { columns: { orderNumber: true } },
-      workDivision: { columns: { name: true } },
-      employee: { columns: { firstName: true, lastName: true } },
+      workOrder: { 
+        columns: { 
+          id: true,
+          orderNumber: true,
+          status: true,
+          createdAt: true,
+          clientId: true,
+          quantity: true,
+          startDate: true,
+          dueDate: true,
+          notes: true,
+          trelloLink: true,
+          fusionLink: true,
+          katanaLink: true,
+        } 
+      },
+      workDivision: { 
+        columns: { 
+          id: true,
+          name: true,
+          description: true,
+          isActive: true,
+          createdAt: true,
+          parentDivisionId: true,
+        } 
+      },
+      employee: { 
+        columns: { 
+          id: true,
+          firstName: true, 
+          lastName: true,
+          ratePerHour: true,
+          createdAt: true,
+        } 
+      },
     },
     orderBy: [desc(timeEntries.createdAt)],
     limit: 5,
-  });
+  }) as TimeEntryWithRelations[];
   
   // Fetch active work orders (status is not 'Completed')
   const activeWorkOrders = await db.query.workOrders.findMany({
       where: not(eq(workOrders.status, 'Completed')),
       with: {
-          client: { columns: { name: true } }
+          client: {
+              columns: {
+                  id: true,
+                  name: true,
+                  createdAt: true,
+                  contactPerson: true,
+                  email: true,
+                  phone: true,
+              }
+          }
       },
       orderBy: [desc(workOrders.createdAt)]
-  })
+  }) as WorkOrderWithClient[];
 
   return (
     <div className="flex-1 w-full flex flex-col gap-8">

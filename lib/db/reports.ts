@@ -1,5 +1,25 @@
 import { db } from "@/lib/db";
 import { desc } from "drizzle-orm";
+import type { workOrderItemAssemblies, assemblies, workOrders, clients, workOrderItems, items, timeEntries, workDivisions } from "@/lib/db/schema";
+
+type SelectedAssemblyWithDetails = typeof workOrderItemAssemblies.$inferSelect & { 
+    assembly: typeof assemblies.$inferSelect 
+};
+
+type WorkOrderItemWithDetails = typeof workOrderItems.$inferSelect & {
+    item: typeof items.$inferSelect;
+    selectedAssemblies: SelectedAssemblyWithDetails[];
+};
+
+type TimeEntryWithDetails = typeof timeEntries.$inferSelect & {
+    workDivision: typeof workDivisions.$inferSelect | null;
+};
+
+type OrderWithDetails = typeof workOrders.$inferSelect & {
+    client: typeof clients.$inferSelect | null;
+    workOrderItems: WorkOrderItemWithDetails[];
+    timeEntries: TimeEntryWithDetails[];
+};
 
 export type ReportData = {
     orderNumber: string;
@@ -38,7 +58,7 @@ export async function getOrderReportData(): Promise<ReportData[]> {
                 }
             }
         }
-    });
+    }) as OrderWithDetails[];
 
     return orders.map(order => {
         const divisionHours: { [key: string]: number } = {};
@@ -55,7 +75,7 @@ export async function getOrderReportData(): Promise<ReportData[]> {
             const assemblies: string[] = [];
             const subAssemblies: string[] = [];
             
-            woi.selectedAssemblies.forEach(sa => {
+            woi.selectedAssemblies.forEach((sa: SelectedAssemblyWithDetails) => {
                 if (sa.assembly.parentAssemblyId) {
                     subAssemblies.push(sa.assembly.name);
                 } else {

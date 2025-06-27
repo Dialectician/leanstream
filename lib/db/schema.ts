@@ -20,10 +20,10 @@ export const employees = pgTable("employees", {
     createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 });
 
-export const workDivisions: any = pgTable("work_divisions", {
+export const workDivisions = pgTable("work_divisions", {
     id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
     name: text("name").notNull(),
-    parentDivisionId: bigint("parent_division_id", { mode: "number" }).references((): any => workDivisions.id, { onDelete: "set null" }),
+    parentDivisionId: bigint("parent_division_id", { mode: "number" }),
     description: text("description"),
     isActive: boolean("is_active").default(true),
     createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
@@ -65,11 +65,11 @@ export const items = pgTable("items", {
     createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 });
 
-export const assemblies: any = pgTable("assemblies", {
+export const assemblies = pgTable("assemblies", {
     id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
     name: text("name").notNull(),
     description: text("description"),
-    parentAssemblyId: bigint("parent_assembly_id", { mode: "number" }).references((): any => assemblies.id, { onDelete: "set null" }),
+    parentAssemblyId: bigint("parent_assembly_id", { mode: "number" }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 });
 

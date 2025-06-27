@@ -5,10 +5,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import type { OrderReportData } from "@/lib/db/reports";
+import type { ReportData } from "@/lib/db/reports";
 
 // Function to convert array of objects to CSV
-const convertToCSV = (data: Record<string, any>[], headers: { key: string, label: string }[]) => {
+const convertToCSV = (data: Record<string, unknown>[], headers: { key: string, label: string }[]) => {
     const headerRow = headers.map(h => h.label).join(',');
     const bodyRows = data.map(row => {
         return headers.map(header => {
@@ -42,8 +42,8 @@ const downloadCSV = (csvString: string, filename: string) => {
     }
 }
 
-export function ReportsClient({ initialOrderReportData }: { initialOrderReportData: OrderReportData[] }) {
-    const [reportData] = useState<OrderReportData[]>(initialOrderReportData);
+export function ReportsClient({ initialOrderReportData }: { initialOrderReportData: ReportData[] }) {
+    const [reportData] = useState<ReportData[]>(initialOrderReportData);
     const [productFilter, setProductFilter] = useState<string>('');
     const [assemblyFilter, setAssemblyFilter] = useState<string>('');
 

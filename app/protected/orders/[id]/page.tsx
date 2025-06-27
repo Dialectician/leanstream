@@ -1,8 +1,24 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { workOrders } from "@/lib/db/schema";
+import { workOrders, clients, workOrderItems, items, assemblies, workOrderItemAssemblies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+
+// Type definitions
+type ClientType = typeof clients.$inferSelect;
+type ItemType = typeof items.$inferSelect;
+type AssemblyType = typeof assemblies.$inferSelect;
+type WorkOrderItemAssemblyType = typeof workOrderItemAssemblies.$inferSelect & {
+  assembly: AssemblyType;
+};
+type WorkOrderItemType = typeof workOrderItems.$inferSelect & {
+  item: ItemType;
+  selectedAssemblies: WorkOrderItemAssemblyType[];
+};
+type WorkOrderWithDetails = typeof workOrders.$inferSelect & {
+  client: ClientType | null;
+  workOrderItems: WorkOrderItemType[];
+};
 import {
   Card,
   CardContent,
@@ -18,10 +34,10 @@ import { Trello, Link as LinkIcon, CaseUpper } from "lucide-react";
 export default async function OrderDetailsPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const supabase = await createClient();
-  const { id } = params;
+  const { id } = await params;
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return redirect("/login");
@@ -29,7 +45,16 @@ export default async function OrderDetailsPage({
   const order = await db.query.workOrders.findFirst({
     where: eq(workOrders.id, Number(id)),
     with: {
-        client: true,
+        client: {
+            columns: {
+                id: true,
+                name: true,
+                contactPerson: true,
+                email: true,
+                phone: true,
+                createdAt: true,
+            }
+        },
         workOrderItems: {
             with: {
                 item: true,
@@ -41,7 +66,7 @@ export default async function OrderDetailsPage({
             }
         }
     }
-  });
+  }) as WorkOrderWithDetails | undefined;
 
   if (!order) {
     return (

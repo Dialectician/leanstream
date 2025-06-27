@@ -30,9 +30,9 @@ type DisplayEntry = {
   date_worked: string;
   hours_spent: number;
   notes: string | null;
-  work_orders: { order_number: string } | null;
-  work_divisions: { name: string } | null;
-  employees: { first_name: string; last_name: string } | null;
+  work_orders: { order_number: string }[] | null;
+  work_divisions: { name: string }[] | null;
+  employees: { first_name: string; last_name: string }[] | null;
 };
 
 interface TimeEntryClientProps {
@@ -314,11 +314,11 @@ export function TimeEntryClient({
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="font-semibold">
-                      {entry.employees?.first_name} {entry.employees?.last_name}
+                      {entry.employees?.[0]?.first_name} {entry.employees?.[0]?.last_name}
                     </p>
                     <p className="text-muted-foreground">
-                      {entry.work_orders?.order_number} /{" "}
-                      {entry.work_divisions?.name}
+                      {entry.work_orders?.[0]?.order_number} /{" "}
+                      {entry.work_divisions?.[0]?.name}
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">

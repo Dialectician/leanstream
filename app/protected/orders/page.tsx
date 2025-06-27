@@ -2,7 +2,21 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { WorkOrdersClient } from "@/components/work-orders-client";
-import { desc } from "drizzle-orm";
+import type { items, assemblies, itemAssemblies, workOrders, clients, workOrderItems, workOrderItemAssemblies } from "@/lib/db/schema";
+
+// Type definitions to match what WorkOrdersClient expects
+type Assembly = typeof assemblies.$inferSelect;
+type ItemWithAssemblies = typeof items.$inferSelect & {
+  itemAssemblies: (typeof itemAssemblies.$inferSelect & { assembly: Assembly })[]
+};
+type WorkOrderItemWithDetails = typeof workOrderItems.$inferSelect & {
+    item: typeof items.$inferSelect,
+    selectedAssemblies: (typeof workOrderItemAssemblies.$inferSelect & { assembly: Assembly })[]
+};
+type OrderWithDetails = typeof workOrders.$inferSelect & { 
+    client: typeof clients.$inferSelect | null,
+    workOrderItems: WorkOrderItemWithDetails[] 
+};
 
 export default async function OrdersPage() {
   const supabase = await createClient();
@@ -16,7 +30,7 @@ export default async function OrdersPage() {
   }
 
   // Fetch all data needed for the orders page and the "Add/Edit" dialogs
-  const [allOrders, allClients, availableItems] = await Promise.all([
+  const [allOrdersRaw, allClients, availableItems] = await Promise.all([
     db.query.workOrders.findMany({
       // Explicitly select all columns to ensure dueDate and startDate are included
       columns: {
@@ -62,13 +76,16 @@ export default async function OrdersPage() {
     })
   ]);
 
+  // Type assertion to match the expected OrderWithDetails type
+  const allOrders = allOrdersRaw as OrderWithDetails[];
+
   return (
     <div className="flex-1 w-full flex flex-col gap-8 items-center">
       <div className="w-full max-w-6xl px-4 md:px-6">
         <WorkOrdersClient
           initialOrders={allOrders}
           allClients={allClients}
-          availableItems={availableItems}
+          availableItems={availableItems as ItemWithAssemblies[]}
         />
       </div>
     </div>
