@@ -9,7 +9,10 @@ export async function createWorkOrderWithItems(formData: FormData) {
   const rawFormData = {
     orderNumber: formData.get('orderNumber') as string,
     clientId: formData.get('clientId') ? Number(formData.get('clientId')) : null,
-    items: JSON.parse(formData.get('items') as string) as { itemId: number; quantity: number; selectedAssemblies: number[] }[]
+    items: JSON.parse(formData.get('items') as string) as { itemId: number; quantity: number; selectedAssemblies: number[] }[],
+    trelloLink: formData.get('trelloLink') as string | null,
+    fusionLink: formData.get('fusionLink') as string | null,
+    katanaLink: formData.get('katanaLink') as string | null,
   };
 
   if (!rawFormData.orderNumber || !rawFormData.items || rawFormData.items.length === 0) {
@@ -21,6 +24,9 @@ export async function createWorkOrderWithItems(formData: FormData) {
       orderNumber: rawFormData.orderNumber,
       clientId: rawFormData.clientId,
       status: 'Planned',
+      trelloLink: rawFormData.trelloLink,
+      fusionLink: rawFormData.fusionLink,
+      katanaLink: rawFormData.katanaLink,
     }).returning();
 
     for (const item of rawFormData.items) {
@@ -52,7 +58,10 @@ export async function updateWorkOrder(orderId: number, formData: FormData) {
     orderNumber: formData.get('orderNumber') as string,
     clientId: formData.get('clientId') ? Number(formData.get('clientId')) : null,
     status: formData.get('status') as string,
-    items: JSON.parse(formData.get('items') as string) as { itemId: number; quantity: number; selectedAssemblies: number[] }[]
+    items: JSON.parse(formData.get('items') as string) as { itemId: number; quantity: number; selectedAssemblies: number[] }[],
+    trelloLink: formData.get('trelloLink') as string | null,
+    fusionLink: formData.get('fusionLink') as string | null,
+    katanaLink: formData.get('katanaLink') as string | null,
   };
 
   if (!rawFormData.orderNumber || !orderId) {
@@ -64,6 +73,9 @@ export async function updateWorkOrder(orderId: number, formData: FormData) {
         orderNumber: rawFormData.orderNumber,
         clientId: rawFormData.clientId,
         status: rawFormData.status,
+        trelloLink: rawFormData.trelloLink,
+        fusionLink: rawFormData.fusionLink,
+        katanaLink: rawFormData.katanaLink,
       }).where(eq(workOrders.id, orderId));
 
     await db.delete(workOrderItems).where(eq(workOrderItems.workOrderId, orderId));

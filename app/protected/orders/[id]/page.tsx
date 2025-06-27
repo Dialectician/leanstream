@@ -1,5 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { db } from "@/lib/db";
+import { workOrders } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import {
   Card,
   CardContent,
@@ -7,52 +10,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ChevronDown, ChevronRight } from "lucide-react";
-
-// Type definition for the data returned by our new SQL function
-type DivisionHours = {
-  division_id: number;
-  division_name: string;
-  parent_id: number | null;
-  depth: number;
-  direct_hours: number;
-  total_hours: number;
-  children?: DivisionHours[];
-};
-
-// A recursive component to render each division and its children
-const DivisionRow = ({ division }: { division: DivisionHours }) => {
-  const hasChildren = division.children && division.children.length > 0;
-  const directHours = Number(division.direct_hours || 0);
-
-  return (
-    <details open className="group">
-      <summary className="flex items-center justify-between p-2 rounded-md cursor-pointer hover:bg-accent list-none">
-        <div className="flex items-center gap-2">
-          {hasChildren && (
-            <>
-              <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
-            </>
-          )}
-          <span className={`font-medium ${!hasChildren && 'ml-6'}`}>{division.division_name}</span>
-        </div>
-        <span className="text-lg font-bold">{Number(division.total_hours).toFixed(2)} hrs</span>
-      </summary>
-      
-      <div className="pl-6 border-l ml-3">
-        {directHours > 0 && (
-          <div className="flex items-center justify-between p-2 text-sm">
-            <span className="text-muted-foreground italic">Hours logged directly to {division.division_name}</span>
-            <span className="font-semibold">{directHours.toFixed(2)} hrs</span>
-          </div>
-        )}
-        {hasChildren && division.children?.map(child => (
-          <DivisionRow key={child.division_id} division={child} />
-        ))}
-      </div>
-    </details>
-  );
-};
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Trello, Link as LinkIcon, CaseUpper } from "lucide-react";
 
 export default async function OrderDetailsPage({
   params,
@@ -65,71 +26,113 @@ export default async function OrderDetailsPage({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return redirect("/login");
 
-  const { data: order, error: orderError } = await supabase
-    .from("work_orders")
-    .select("*")
-    .eq("id", id)
-    .single();
-    
-  // Call our RPC function
-  const { data: hoursData, error: rpcError } = await supabase
-    .rpc('get_order_hours_breakdown', { p_work_order_id: parseInt(id) })
-    .returns<DivisionHours[]>();
+  const order = await db.query.workOrders.findFirst({
+    where: eq(workOrders.id, Number(id)),
+    with: {
+        client: true,
+        workOrderItems: {
+            with: {
+                item: true,
+                selectedAssemblies: {
+                    with: {
+                        assembly: true
+                    }
+                }
+            }
+        }
+    }
+  });
 
-  // **IMPROVED ERROR HANDLING**
-  if (orderError || rpcError) {
-    console.error("Error fetching order details:", orderError || rpcError);
-    const errorMessage = (orderError?.message || rpcError?.message) || "An unknown error occurred.";
-    return <div className="p-4 text-red-500">Error: {errorMessage}</div>;
+  if (!order) {
+    return (
+      <div className="p-4 text-center">
+        <h1 className="text-xl font-bold">Work Order not found.</h1>
+        <p className="text-muted-foreground">The requested order does not exist.</p>
+      </div>
+    );
   }
 
-  if (!order) return <div>Work Order not found.</div>;
-
-  const buildTree = (list: DivisionHours[]): DivisionHours[] => {
-    const map: Record<number, DivisionHours> = {};
-    const roots: DivisionHours[] = [];
-
-    list.forEach(node => {
-      map[node.division_id] = { ...node, children: [] };
-    });
-
-    list.forEach(node => {
-      if (node.parent_id !== null && map[node.parent_id]) {
-        map[node.parent_id].children?.push(map[node.division_id]);
-      } else {
-        roots.push(map[node.division_id]);
-      }
-    });
-
-    return roots;
-  };
-
-  const divisionTree = buildTree(hoursData || []);
-  const totalHours = divisionTree.reduce((sum, root) => sum + Number(root.total_hours), 0);
-
   return (
-    <div className="w-full max-w-4xl px-4 md:px-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Order: {order.order_number}</h1>
-        <p className="text-muted-foreground">Status: {order.status}</p>
+    <div className="w-full max-w-4xl px-4 md:px-6 mx-auto">
+      <div className="mb-6 flex justify-between items-start">
+        <div>
+            <h1 className="text-3xl font-bold">Order: {order.orderNumber}</h1>
+            <p className="text-muted-foreground">
+                For: <span className="font-semibold text-foreground">{order.client?.name ?? 'N/A'}</span>
+            </p>
+        </div>
+        <Badge variant={order.status === 'Completed' ? 'default' : 'secondary'} className="text-lg">
+            {order.status}
+        </Badge>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Hours Breakdown</CardTitle>
-          <div className="flex justify-between items-baseline">
-             <CardDescription>Total hours per division, including sub-divisions.</CardDescription>
-             <p className="text-sm">Total Order Hours: <span className="font-bold text-lg">{totalHours.toFixed(2)}</span></p>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-1">
-            {divisionTree.map(rootDivision => (
-              <DivisionRow key={rootDivision.division_id} division={rootDivision} />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-2">
+            <Card>
+                <CardHeader>
+                <CardTitle>Order Items</CardTitle>
+                <CardDescription>
+                    The complete list of items and selected assemblies for this work order.
+                </CardDescription>
+                </CardHeader>
+                <CardContent>
+                <div className="space-y-6">
+                    {order.workOrderItems.map((orderItem) => (
+                    <div key={orderItem.id} className="p-4 border rounded-lg bg-muted/20">
+                        <h3 className="font-bold text-lg mb-2">{orderItem.item.name} (Qty: {orderItem.quantity})</h3>
+                        {orderItem.selectedAssemblies.length > 0 ? (
+                        <ul className="space-y-1 pl-4">
+                            {orderItem.selectedAssemblies.map(selectedAssembly => (
+                            <li key={selectedAssembly.id} className="text-sm list-disc list-inside">
+                                {selectedAssembly.assembly.name}
+                            </li>
+                            ))}
+                        </ul>
+                        ) : (
+                        <p className="text-sm text-muted-foreground pl-4">No specific assemblies selected for this item.</p>
+                        )}
+                    </div>
+                    ))}
+                    {order.workOrderItems.length === 0 && (
+                        <p className="text-center text-muted-foreground py-4">
+                            There are no items associated with this work order yet.
+                        </p>
+                    )}
+                </div>
+                </CardContent>
+            </Card>
+        </div>
+        <div className="md:col-span-1 space-y-4">
+            <Card>
+                <CardHeader>
+                    <CardTitle>External Links</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-2">
+                    {order.trelloLink ? (
+                        <Button asChild>
+                            <Link href={order.trelloLink} target="_blank" rel="noopener noreferrer">
+                                <Trello className="mr-2 h-4 w-4" /> View on Trello
+                            </Link>
+                        </Button>
+                    ) : <p className="text-sm text-muted-foreground">No Trello link.</p> }
+                    {order.fusionLink ? (
+                         <Button asChild variant="secondary">
+                            <Link href={order.fusionLink} target="_blank" rel="noopener noreferrer">
+                                <LinkIcon className="mr-2 h-4 w-4" /> View on Fusion 360
+                            </Link>
+                        </Button>
+                    ) : <p className="text-sm text-muted-foreground">No Fusion 360 link.</p> }
+                    {order.katanaLink ? (
+                         <Button asChild variant="secondary">
+                            <Link href={order.katanaLink} target="_blank" rel="noopener noreferrer">
+                                <CaseUpper className="mr-2 h-4 w-4" /> View on Katana
+                            </Link>
+                        </Button>
+                    ) : <p className="text-sm text-muted-foreground">No Katana link.</p> }
+                </CardContent>
+            </Card>
+        </div>
+      </div>
     </div>
   );
 }

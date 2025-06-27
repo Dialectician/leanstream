@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -55,6 +55,9 @@ export function WorkOrdersClient({ initialOrders, allClients, availableItems }: 
   const [dialogStep, setDialogStep] = useState(1);
   const [orderNumber, setOrderNumber] = useState("");
   const [clientId, setClientId] = useState<number | null>(null);
+  const [trelloLink, setTrelloLink] = useState("");
+  const [fusionLink, setFusionLink] = useState("");
+  const [katanaLink, setKatanaLink] = useState("");
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
   const [currentItem, setCurrentItem] = useState<ItemWithAssemblies | null>(null);
   const [currentAssemblies, setCurrentAssemblies] = useState<number[]>([]);
@@ -64,6 +67,9 @@ export function WorkOrdersClient({ initialOrders, allClients, availableItems }: 
     if (editingOrder) {
       setOrderNumber(editingOrder.orderNumber);
       setClientId(editingOrder.clientId);
+      setTrelloLink(editingOrder.trelloLink ?? "");
+      setFusionLink(editingOrder.fusionLink ?? "");
+      setKatanaLink(editingOrder.katanaLink ?? "");
       const existingItems = editingOrder.workOrderItems.map(woi => ({
           itemId: woi.itemId,
           itemName: woi.item.name,
@@ -78,6 +84,9 @@ export function WorkOrdersClient({ initialOrders, allClients, availableItems }: 
     setDialogStep(1);
     setOrderNumber("");
     setClientId(null);
+    setTrelloLink("");
+    setFusionLink("");
+    setKatanaLink("");
     setStagedItems([]);
     setCurrentItem(null);
     setCurrentAssemblies([]);
@@ -91,7 +100,7 @@ export function WorkOrdersClient({ initialOrders, allClients, availableItems }: 
   }
 
   const handleOpenEditModal = (order: OrderWithDetails) => {
-    resetDialogs(); // Reset first to clear any old state
+    resetDialogs();
     setEditingOrder(order);
     setModalOpen(true);
   }
@@ -126,6 +135,9 @@ export function WorkOrdersClient({ initialOrders, allClients, availableItems }: 
     formData.append('clientId', String(clientId));
     formData.append('status', editingOrder?.status ?? 'Planned');
     formData.append('items', JSON.stringify(stagedItems));
+    formData.append('trelloLink', trelloLink);
+    formData.append('fusionLink', fusionLink);
+    formData.append('katanaLink', katanaLink);
 
     startTransition(async () => {
       const result = await (isEditing ? updateWorkOrder(editingOrder!.id, formData) : createWorkOrderWithItems(formData));
@@ -196,6 +208,9 @@ export function WorkOrdersClient({ initialOrders, allClients, availableItems }: 
                     {allClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
+                <div className="grid gap-2"><Label>Trello Link</Label><Input value={trelloLink} onChange={(e) => setTrelloLink(e.target.value)} placeholder="https://trello.com/..." /></div>
+                <div className="grid gap-2"><Label>Fusion 360 Link</Label><Input value={fusionLink} onChange={(e) => setFusionLink(e.target.value)} placeholder="https://fusion360.autodesk.com/..." /></div>
+                <div className="grid gap-2"><Label>Katana Link</Label><Input value={katanaLink} onChange={(e) => setKatanaLink(e.target.value)} placeholder="https://katanamrp.com/..." /></div>
               </div>
               <div className="pt-4">
                 <h3 className="font-semibold mb-2">Items on Order ({stagedItems.length})</h3>

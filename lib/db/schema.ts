@@ -39,6 +39,11 @@ export const workOrders = pgTable("work_orders", {
 	notes: text("notes"),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 	clientId: bigint("client_id", { mode: "number" }).references(() => clients.id, { onDelete: "set null" } ),
+    // Add these two new fields
+    trelloLink: text("trello_link"),
+    fusionLink: text("fusion_link"),
+    // Add the new Katana link field
+    katanaLink: text("katana_link"),
 });
 
 export const timeEntries = pgTable("time_entries", {
