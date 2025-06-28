@@ -64,17 +64,21 @@ export default async function TimeEntryPage() {
   }
 
   return (
-    <div className="flex-1 w-full flex flex-col gap-8 items-center">
-      <div className="w-full max-w-6xl px-4 md:px-6">
-        <h1 className="text-2xl font-bold mb-6">Daily Time Card Entry</h1>
-        <TimeEntryClient
-          orders={orders || []}
-          divisions={divisions || []}
-          employees={employees || []}
-          clients={clients || []} // Passing the clients prop
-          initialTimeEntries={time_entries || []}
-        />
+    <div className="flex-1 w-full flex flex-col gap-8">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold">Time Entry</h1>
+        <p className="text-muted-foreground">
+          Log daily time entries for employees across different work orders and
+          divisions.
+        </p>
       </div>
+      <TimeEntryClient
+        orders={orders || []}
+        divisions={divisions || []}
+        employees={employees || []}
+        clients={clients || []} // Passing the clients prop
+        initialTimeEntries={time_entries || []}
+      />
     </div>
   );
 }

@@ -94,11 +94,14 @@ export default async function OrderDetailsPage({
     if (!order) {
       console.warn("Order not found for ID:", id);
       return (
-        <div className="p-4 text-center">
-          <h1 className="text-xl font-bold">Work Order not found.</h1>
-          <p className="text-muted-foreground">
-            The requested order does not exist.
-          </p>
+        <div className="flex-1 w-full flex flex-col gap-8">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-3xl font-bold">Order Not Found</h1>
+            <p className="text-muted-foreground">
+              The requested work order does not exist or you don&apos;t have
+              permission to view it.
+            </p>
+          </div>
         </div>
       );
     }
@@ -106,25 +109,27 @@ export default async function OrderDetailsPage({
     console.log("Order fetched successfully:", order);
 
     return (
-      <div className="w-full max-w-4xl px-4 md:px-6 mx-auto">
-        <div className="mb-6 flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold">Order: {order.orderNumber}</h1>
-            <p className="text-muted-foreground">
-              For:{" "}
-              <span className="font-semibold text-foreground">
-                {order.client
-                  ? `${order.client.firstName} ${order.client.lastName}`
-                  : "N/A"}
-              </span>
-            </p>
+      <div className="flex-1 w-full flex flex-col gap-8">
+        <div className="flex flex-col gap-2">
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-3xl font-bold">Order: {order.orderNumber}</h1>
+              <p className="text-muted-foreground">
+                For:{" "}
+                <span className="font-semibold text-foreground">
+                  {order.client
+                    ? `${order.client.firstName} ${order.client.lastName}`
+                    : "N/A"}
+                </span>
+              </p>
+            </div>
+            <Badge
+              variant={order.status === "Completed" ? "default" : "secondary"}
+              className="text-lg"
+            >
+              {order.status}
+            </Badge>
           </div>
-          <Badge
-            variant={order.status === "Completed" ? "default" : "secondary"}
-            className="text-lg"
-          >
-            {order.status}
-          </Badge>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

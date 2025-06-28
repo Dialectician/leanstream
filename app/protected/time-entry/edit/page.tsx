@@ -15,19 +15,27 @@ export default async function EditTimeEntryPage() {
 
   // Fetch data needed for the form dropdowns
   const { data: employees } = await supabase.from("employees").select("*");
-  const { data: orders } = await supabase.from("work_orders").select("id, order_number");
-  const { data: divisions } = await supabase.from("work_divisions").select("id, name");
+  const { data: orders } = await supabase
+    .from("work_orders")
+    .select("id, order_number");
+  const { data: divisions } = await supabase
+    .from("work_divisions")
+    .select("id, name");
 
   return (
-    <div className="flex-1 w-full flex flex-col gap-8 items-center">
-      <div className="w-full max-w-4xl px-4 md:px-6">
-        <h1 className="text-2xl font-bold mb-6">Time Card Editor</h1>
-        <TimeCardEditorClient
-          employees={employees || []}
-          orders={orders || []}
-          divisions={divisions || []}
-        />
+    <div className="flex-1 w-full flex flex-col gap-8">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold">Edit Time Cards</h1>
+        <p className="text-muted-foreground">
+          Create and edit time card entries for employees with multiple work
+          orders.
+        </p>
       </div>
+      <TimeCardEditorClient
+        employees={employees || []}
+        orders={orders || []}
+        divisions={divisions || []}
+      />
     </div>
   );
 }

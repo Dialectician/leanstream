@@ -23,11 +23,15 @@ export default async function EmployeesPage() {
   }
 
   return (
-    <div className="flex-1 w-full flex flex-col gap-8 items-center">
-      <div className="w-full max-w-4xl px-4 md:px-6">
-        <h1 className="text-2xl font-bold mb-6">Manage Employees</h1>
-        <EmployeesClient employees={employees || []} />
+    <div className="flex-1 w-full flex flex-col gap-8">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold">Employees</h1>
+        <p className="text-muted-foreground">
+          Manage your workforce and employee information including rates and
+          contact details.
+        </p>
       </div>
+      <EmployeesClient employees={employees || []} />
     </div>
   );
 }

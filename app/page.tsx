@@ -1,192 +1,49 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { db } from "@/lib/db";
-import { desc, not, eq } from "drizzle-orm";
-import {
-  timeEntries,
-  workOrders,
-  clients,
-  employees,
-  workDivisions,
-} from "@/lib/db/schema";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { EnvVarWarning } from "@/components/env-var-warning";
+import { AuthButton } from "@/components/auth-button";
+import { Hero } from "@/components/hero";
+import { ThemeSwitcher } from "@/components/theme-switcher";
+import { hasEnvVars } from "@/lib/utils";
 import Link from "next/link";
 
-// Type definitions for the queries
-type ClientType = typeof clients.$inferSelect;
-type EmployeeType = typeof employees.$inferSelect;
-type WorkDivisionType = typeof workDivisions.$inferSelect;
-type WorkOrderType = typeof workOrders.$inferSelect;
-
-type WorkOrderWithClient = typeof workOrders.$inferSelect & {
-  client: ClientType | null;
-};
-
-type TimeEntryWithRelations = typeof timeEntries.$inferSelect & {
-  employee: EmployeeType | null;
-  workOrder: WorkOrderType | null;
-  workDivision: WorkDivisionType | null;
-};
-
-export default async function ProtectedPage() {
+export default async function HomePage() {
   const supabase = await createClient();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    return redirect("/auth/login");
+  if (user) {
+    return redirect("/protected");
   }
 
-  // Fetch recent time entries with related data using Drizzle
-  const recentTimeEntries = (await db.query.timeEntries.findMany({
-    with: {
-      workOrder: {
-        columns: {
-          id: true,
-          orderNumber: true,
-          status: true,
-          createdAt: true,
-          clientId: true,
-          quantity: true,
-          startDate: true,
-          dueDate: true,
-          notes: true,
-          trelloLink: true,
-          fusionLink: true,
-          katanaLink: true,
-        },
-      },
-      workDivision: {
-        columns: {
-          id: true,
-          name: true,
-          description: true,
-          isActive: true,
-          createdAt: true,
-          parentDivisionId: true,
-        },
-      },
-      employee: {
-        columns: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          ratePerHour: true,
-          createdAt: true,
-        },
-      },
-    },
-    orderBy: [desc(timeEntries.createdAt)],
-    limit: 5,
-  })) as TimeEntryWithRelations[];
-
-  // Fetch active work orders (status is not 'Completed')
-  const activeWorkOrders = (await db.query.workOrders.findMany({
-    where: not(eq(workOrders.status, "Completed")),
-    with: {
-      client: {
-        columns: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          createdAt: true,
-          contactPerson: true,
-          email: true,
-          phone: true,
-        },
-      },
-    },
-    orderBy: [desc(workOrders.createdAt)],
-  })) as WorkOrderWithClient[];
-
   return (
-    <div className="flex-1 w-full flex flex-col gap-8">
-      <div>
-        <h1 className="text-2xl font-bold">Welcome, {user.email}</h1>
-        <p className="text-muted-foreground">
-          Here&apos;s a quick overview of your operations.
-        </p>
-      </div>
+    <main className="min-h-screen flex flex-col items-center">
+      <div className="flex-1 w-full flex flex-col gap-20 items-center">
+        <nav className="w-full flex justify-center border-b border-b-foreground/10 h-16">
+          <div className="w-full max-w-6xl flex justify-between items-center p-3 px-5 text-sm">
+            <div className="flex gap-5 items-center font-semibold">
+              <Link href={"/"}>LeanStream</Link>
+            </div>
+            {!hasEnvVars ? <EnvVarWarning /> : <AuthButton />}
+          </div>
+        </nav>
+        <div className="flex-1 flex flex-col gap-20 max-w-5xl p-5">
+          <Hero />
+          <div className="w-full p-[1px] bg-gradient-to-r from-transparent via-foreground/10 to-transparent my-8" />
+          <p className="text-center text-muted-foreground">
+            Please sign in to continue.
+          </p>
+        </div>
 
-      <div className="grid gap-8 md:grid-cols-2">
-        {/* Active Work Orders Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Active Work Orders</CardTitle>
-            <CardDescription>
-              All orders that are not yet completed.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {activeWorkOrders.map((order) => (
-                <li key={order.id}>
-                  <Link href={`/protected/orders/${order.id}`}>
-                    <div className="flex justify-between items-center p-3 border rounded-md hover:bg-accent transition-colors">
-                      <div>
-                        <p className="font-semibold">{order.orderNumber}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {order.client
-                            ? `${order.client.firstName || ""} ${
-                                order.client.lastName || ""
-                              }`.trim() || "No Client Name"
-                            : "No Client"}
-                        </p>
-                      </div>
-                      <span className="text-sm font-medium px-2 py-1 bg-secondary text-secondary-foreground rounded-md">
-                        {order.status}
-                      </span>
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-
-        {/* Recent Time Entries Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>
-              The latest time entries logged across all orders.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-3">
-              {recentTimeEntries.map((entry) => (
-                <li key={entry.id} className="p-3 border rounded-md text-sm">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-semibold">
-                        {entry.employee?.firstName} {entry.employee?.lastName}
-                      </p>
-                      <p className="text-muted-foreground">
-                        {entry.workOrder?.orderNumber} /{" "}
-                        {entry.workDivision?.name}
-                      </p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="font-bold">{entry.hoursSpent} hrs</p>
-                      <p className="text-xs text-muted-foreground">
-                        {entry.dateWorked}
-                      </p>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+        <footer className="w-full flex items-center justify-between mx-auto text-center text-xs gap-8 py-8 max-w-6xl px-5">
+          <p className="text-muted-foreground">
+            &copy; {new Date().getFullYear()} LeanStream. All rights reserved.
+          </p>
+          <ThemeSwitcher />
+        </footer>
       </div>
-    </div>
+    </main>
   );
 }

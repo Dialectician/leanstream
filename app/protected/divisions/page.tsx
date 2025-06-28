@@ -23,11 +23,14 @@ export default async function DivisionsPage() {
   }
 
   return (
-    <div className="flex-1 w-full flex flex-col gap-8 items-center">
-      <div className="w-full max-w-4xl px-4 md:px-6">
-        <h1 className="text-2xl font-bold mb-6">Work Divisions</h1>
-        <WorkDivisionsClient divisions={divisions || []} />
+    <div className="flex-1 w-full flex flex-col gap-8">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold">Work Divisions</h1>
+        <p className="text-muted-foreground">
+          Organize your manufacturing operations into divisions and departments.
+        </p>
       </div>
+      <WorkDivisionsClient divisions={divisions || []} />
     </div>
   );
 }

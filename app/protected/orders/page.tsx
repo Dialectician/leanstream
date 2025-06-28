@@ -101,14 +101,18 @@ export default async function OrdersPage() {
   const allOrders = allOrdersRaw as OrderWithDetails[];
 
   return (
-    <div className="flex-1 w-full flex flex-col gap-8 items-center">
-      <div className="w-full max-w-6xl px-4 md:px-6">
-        <WorkOrdersClient
-          initialOrders={allOrders}
-          allClients={allClients}
-          availableItems={availableItems as ItemWithAssemblies[]}
-        />
+    <div className="flex-1 w-full flex flex-col gap-8">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold">Work Orders</h1>
+        <p className="text-muted-foreground">
+          Create and manage work orders for your manufacturing operations.
+        </p>
       </div>
+      <WorkOrdersClient
+        initialOrders={allOrders}
+        allClients={allClients}
+        availableItems={availableItems as ItemWithAssemblies[]}
+      />
     </div>
   );
 }

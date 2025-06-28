@@ -17,11 +17,14 @@ export default async function ReportsPage() {
   const reportData = await getOrderReportData();
 
   return (
-    <div className="flex-1 w-full flex flex-col gap-8 items-center">
-      <div className="w-full max-w-6xl px-4 md:px-6">
-        <h1 className="text-2xl font-bold mb-6">Operations Reports</h1>
-        <ReportsClient initialOrderReportData={reportData} />
+    <div className="flex-1 w-full flex flex-col gap-8">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold">Reports</h1>
+        <p className="text-muted-foreground">
+          Analyze your operations with detailed reports and insights.
+        </p>
       </div>
+      <ReportsClient initialOrderReportData={reportData} />
     </div>
   );
 }

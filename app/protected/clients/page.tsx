@@ -25,11 +25,14 @@ export default async function ClientsPage() {
   }
 
   return (
-    <div className="flex-1 w-full flex flex-col gap-8 items-center">
-      <div className="w-full max-w-4xl px-4 md:px-6">
-        <h1 className="text-2xl font-bold mb-6">Manage Clients</h1>
-        <ClientsClient clients={clients || []} />
+    <div className="flex-1 w-full flex flex-col gap-8">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold">Clients</h1>
+        <p className="text-muted-foreground">
+          Manage your client database and contact information.
+        </p>
       </div>
+      <ClientsClient clients={clients || []} />
     </div>
   );
 }
