@@ -43,6 +43,13 @@
       "when": 1751060850139,
       "tag": "0005_easy_reptil",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1751212222597,
+      "tag": "0006_strange_silver_fox",
+      "breakpoints": true
     }
   ]
 }

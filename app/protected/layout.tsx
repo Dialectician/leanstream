@@ -13,6 +13,7 @@ import {
   Wrench,
   BarChart3,
   Menu,
+  Trello,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -62,6 +63,13 @@ export default function ProtectedLayout({
               >
                 <Package className="h-4 w-4" />
                 <span>Orders</span>
+              </Link>
+              <Link
+                href="/protected/board"
+                className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <Trello className="h-4 w-4" />
+                <span>Project Board</span>
               </Link>
               <Link
                 href="/protected/divisions"
@@ -145,6 +153,13 @@ export default function ProtectedLayout({
                       <span>Orders</span>
                     </Link>
                     <Link
+                      href="/protected/board"
+                      className="flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
+                    >
+                      <Trello className="h-4 w-4" />
+                      <span>Project Board</span>
+                    </Link>
+                    <Link
                       href="/protected/divisions"
                       className="flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
                     >
@@ -212,7 +227,7 @@ export default function ProtectedLayout({
         </header>
 
         {/* Main Content */}
-        <div className="flex-1 container py-6">{children}</div>
+        <div className="flex-1 w-full">{children}</div>
 
         {/* Footer */}
         <footer className="border-t bg-muted/50">

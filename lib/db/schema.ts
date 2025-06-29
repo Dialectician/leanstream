@@ -253,3 +253,211 @@ export const workOrderItemAssembliesRelations = relations(
     }),
   })
 );
+
+// =================================================================
+// --- TRELLO CLONE TABLES ---
+// =================================================================
+
+export const boards = pgTable("boards", {
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  backgroundColor: text("background_color").default("#0079bf"),
+  isArchived: boolean("is_archived").default(false),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+    mode: "string",
+  }).defaultNow(),
+});
+
+export const lists = pgTable("lists", {
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  boardId: bigint("board_id", { mode: "number" })
+    .notNull()
+    .references(() => boards.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  position: integer("position").notNull().default(0),
+  isArchived: boolean("is_archived").default(false),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+    mode: "string",
+  }).defaultNow(),
+});
+
+export const cards = pgTable("cards", {
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  listId: bigint("list_id", { mode: "number" })
+    .notNull()
+    .references(() => lists.id, { onDelete: "cascade" }),
+  workOrderId: bigint("work_order_id", { mode: "number" }).references(
+    () => workOrders.id,
+    { onDelete: "cascade" }
+  ),
+  title: text("title").notNull(),
+  description: text("description"),
+  position: integer("position").notNull().default(0),
+  dueDate: timestamp("due_date", { withTimezone: true, mode: "string" }),
+  isArchived: boolean("is_archived").default(false),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+    mode: "string",
+  }).defaultNow(),
+});
+
+export const labels = pgTable("labels", {
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  boardId: bigint("board_id", { mode: "number" })
+    .notNull()
+    .references(() => boards.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  color: text("color").notNull(),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+    mode: "string",
+  }).defaultNow(),
+});
+
+export const cardLabels = pgTable("card_labels", {
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  cardId: bigint("card_id", { mode: "number" })
+    .notNull()
+    .references(() => cards.id, { onDelete: "cascade" }),
+  labelId: bigint("label_id", { mode: "number" })
+    .notNull()
+    .references(() => labels.id, { onDelete: "cascade" }),
+});
+
+export const comments = pgTable("comments", {
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  cardId: bigint("card_id", { mode: "number" })
+    .notNull()
+    .references(() => cards.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  authorName: text("author_name").notNull(),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+    mode: "string",
+  }).defaultNow(),
+});
+
+export const attachments = pgTable("attachments", {
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  cardId: bigint("card_id", { mode: "number" })
+    .notNull()
+    .references(() => cards.id, { onDelete: "cascade" }),
+  fileName: text("file_name").notNull(),
+  fileUrl: text("file_url").notNull(),
+  fileSize: integer("file_size"),
+  mimeType: text("mime_type"),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+    mode: "string",
+  }).defaultNow(),
+});
+
+export const checklists = pgTable("checklists", {
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  cardId: bigint("card_id", { mode: "number" })
+    .notNull()
+    .references(() => cards.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+    mode: "string",
+  }).defaultNow(),
+});
+
+export const checklistItems = pgTable("checklist_items", {
+  id: bigserial("id", { mode: "number" }).primaryKey().notNull(),
+  checklistId: bigint("checklist_id", { mode: "number" })
+    .notNull()
+    .references(() => checklists.id, { onDelete: "cascade" }),
+  text: text("text").notNull(),
+  isCompleted: boolean("is_completed").default(false),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+    mode: "string",
+  }).defaultNow(),
+});
+
+// =================================================================
+// --- TRELLO CLONE RELATIONS ---
+// =================================================================
+
+export const boardsRelations = relations(boards, ({ many }) => ({
+  lists: many(lists),
+  labels: many(labels),
+}));
+
+export const listsRelations = relations(lists, ({ one, many }) => ({
+  board: one(boards, {
+    fields: [lists.boardId],
+    references: [boards.id],
+  }),
+  cards: many(cards),
+}));
+
+export const cardsRelations = relations(cards, ({ one, many }) => ({
+  list: one(lists, {
+    fields: [cards.listId],
+    references: [lists.id],
+  }),
+  workOrder: one(workOrders, {
+    fields: [cards.workOrderId],
+    references: [workOrders.id],
+  }),
+  cardLabels: many(cardLabels),
+  comments: many(comments),
+  attachments: many(attachments),
+  checklists: many(checklists),
+}));
+
+export const labelsRelations = relations(labels, ({ one, many }) => ({
+  board: one(boards, {
+    fields: [labels.boardId],
+    references: [boards.id],
+  }),
+  cardLabels: many(cardLabels),
+}));
+
+export const cardLabelsRelations = relations(cardLabels, ({ one }) => ({
+  card: one(cards, {
+    fields: [cardLabels.cardId],
+    references: [cards.id],
+  }),
+  label: one(labels, {
+    fields: [cardLabels.labelId],
+    references: [labels.id],
+  }),
+}));
+
+export const commentsRelations = relations(comments, ({ one }) => ({
+  card: one(cards, {
+    fields: [comments.cardId],
+    references: [cards.id],
+  }),
+}));
+
+export const attachmentsRelations = relations(attachments, ({ one }) => ({
+  card: one(cards, {
+    fields: [attachments.cardId],
+    references: [cards.id],
+  }),
+}));
+
+export const checklistsRelations = relations(checklists, ({ one, many }) => ({
+  card: one(cards, {
+    fields: [checklists.cardId],
+    references: [cards.id],
+  }),
+  items: many(checklistItems),
+}));
+
+export const checklistItemsRelations = relations(checklistItems, ({ one }) => ({
+  checklist: one(checklists, {
+    fields: [checklistItems.checklistId],
+    references: [checklists.id],
+  }),
+}));
