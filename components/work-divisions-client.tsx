@@ -49,13 +49,28 @@ export function WorkDivisionsClient({
         description: newDivisionDescription,
         parent_division_id: newParentId ? parseInt(newParentId, 10) : null,
       })
-      .select(`*, parent:parent_division_id ( name )`)
+      .select("*")
       .single();
+
+    // If we have a new division and it has a parent, fetch the parent name
+    let divisionWithParent = newDivision;
+    if (newDivision && newDivision.parent_division_id) {
+      const { data: parentDivision } = await supabase
+        .from("work_divisions")
+        .select("id, name")
+        .eq("id", newDivision.parent_division_id)
+        .single();
+
+      divisionWithParent = {
+        ...newDivision,
+        parent: parentDivision || null,
+      };
+    }
 
     if (insertError) {
       setError(insertError.message);
-    } else if (newDivision) {
-      setDivisions([...divisions, newDivision]);
+    } else if (divisionWithParent) {
+      setDivisions([...divisions, divisionWithParent]);
       setNewDivisionName("");
       setNewDivisionDescription("");
       setNewParentId("");

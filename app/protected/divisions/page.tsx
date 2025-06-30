@@ -13,9 +13,33 @@ export default async function DivisionsPage() {
     return redirect("/login");
   }
 
+  // Fetch divisions and their parent division names separately
   const { data: divisions, error } = await supabase
     .from("work_divisions")
-    .select(`*, parent:parent_division_id ( name )`);
+    .select("*");
+
+  // If we have divisions, fetch parent division names
+  let divisionsWithParents = divisions;
+  if (divisions && divisions.length > 0) {
+    const parentIds = divisions
+      .filter((d) => d.parent_division_id)
+      .map((d) => d.parent_division_id);
+
+    if (parentIds.length > 0) {
+      const { data: parentDivisions } = await supabase
+        .from("work_divisions")
+        .select("id, name")
+        .in("id", parentIds);
+
+      // Map parent names to divisions
+      divisionsWithParents = divisions.map((division) => ({
+        ...division,
+        parent:
+          parentDivisions?.find((p) => p.id === division.parent_division_id) ||
+          null,
+      }));
+    }
+  }
 
   if (error) {
     console.error("Error fetching divisions:", error);
@@ -30,7 +54,7 @@ export default async function DivisionsPage() {
           Organize your manufacturing operations into divisions and departments.
         </p>
       </div>
-      <WorkDivisionsClient divisions={divisions || []} />
+      <WorkDivisionsClient divisions={divisionsWithParents || []} />
     </div>
   );
 }

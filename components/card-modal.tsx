@@ -1,13 +1,16 @@
 // components/card-modal.tsx
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import Image from "next/image";
 import {
   Dialog,
   DialogContent,
@@ -39,108 +42,7 @@ import {
   addAttachment,
   deleteAttachment,
 } from "@/app/protected/board/actions";
-
-// Type definitions (same as in trello-board-client.tsx)
-type Label = {
-  id: number;
-  boardId: number;
-  name: string;
-  color: string;
-  createdAt: string | null;
-};
-
-type CardLabel = {
-  id: number;
-  cardId: number;
-  labelId: number;
-  label: Label;
-};
-
-type Comment = {
-  id: number;
-  cardId: number;
-  content: string;
-  authorName: string;
-  createdAt: string | null;
-};
-
-type Attachment = {
-  id: number;
-  cardId: number;
-  fileName: string;
-  fileUrl: string;
-  fileSize: number | null;
-  mimeType: string | null;
-  createdAt: string | null;
-};
-
-type ChecklistItem = {
-  id: number;
-  checklistId: number;
-  text: string;
-  isCompleted: boolean | null;
-  position: number;
-  createdAt: string | null;
-};
-
-type Checklist = {
-  id: number;
-  cardId: number;
-  title: string;
-  position: number;
-  createdAt: string | null;
-  items: ChecklistItem[];
-};
-
-type WorkOrder = {
-  id: number;
-  orderNumber: string;
-  status: string | null;
-  dueDate: string | null;
-  client: {
-    id: number;
-    firstName: string | null;
-    lastName: string | null;
-  } | null;
-};
-
-type Card = {
-  id: number;
-  listId: number;
-  workOrderId: number | null;
-  title: string;
-  description: string | null;
-  position: number;
-  dueDate: string | null;
-  isArchived: boolean | null;
-  createdAt: string | null;
-  cardLabels: CardLabel[];
-  comments: Comment[];
-  attachments: Attachment[];
-  checklists: Checklist[];
-  workOrder: WorkOrder | null;
-};
-
-type List = {
-  id: number;
-  boardId: number;
-  name: string;
-  position: number;
-  isArchived: boolean | null;
-  createdAt: string | null;
-  cards: Card[];
-};
-
-type Board = {
-  id: number;
-  name: string;
-  description: string | null;
-  backgroundColor: string | null;
-  isArchived: boolean | null;
-  createdAt: string | null;
-  lists: List[];
-  labels: Label[];
-};
+import type { Board, Card } from "@/lib/types";
 
 interface CardModalProps {
   card: Card;
@@ -163,6 +65,48 @@ export function CardModal({ card, board, onClose, onUpdate }: CardModalProps) {
   const [dueDate, setDueDate] = useState(card.dueDate || "");
   const [isEditingDueDate, setIsEditingDueDate] = useState(false);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+
+  // Sync local state with card prop when it changes (for real-time updates)
+  useEffect(() => {
+    console.log("CardModal: Card prop changed", {
+      cardId: card.id,
+      title: card.title,
+      description: card.description,
+      dueDate: card.dueDate,
+      commentsCount: card.comments.length,
+      checklistsCount: card.checklists.length,
+      attachmentsCount: card.attachments.length,
+    });
+
+    // Only update if not currently editing to avoid overwriting user input
+    if (!isEditingTitle && title !== card.title) {
+      console.log("CardModal: Updating title from", title, "to", card.title);
+      setTitle(card.title);
+    }
+    if (!isEditingDescription && description !== (card.description || "")) {
+      console.log("CardModal: Updating description");
+      setDescription(card.description || "");
+    }
+    if (!isEditingDueDate && dueDate !== (card.dueDate || "")) {
+      console.log("CardModal: Updating due date");
+      setDueDate(card.dueDate || "");
+    }
+  }, [
+    card.id,
+    card.title,
+    card.description,
+    card.dueDate,
+    card.comments.length,
+    card.checklists.length,
+    card.attachments.length,
+    card.cardLabels.length,
+    isEditingTitle,
+    isEditingDescription,
+    isEditingDueDate,
+    title,
+    description,
+    dueDate,
+  ]);
 
   const handleUpdateTitle = () => {
     if (title.trim() === card.title) {
@@ -200,11 +144,18 @@ export function CardModal({ card, board, onClose, onUpdate }: CardModalProps) {
       return;
     }
 
+    // Optimistic update - update UI immediately
+    const previousDueDate = card.dueDate;
+    onUpdate({ ...card, dueDate: dueDate || null });
+    setIsEditingDueDate(false);
+
     startTransition(async () => {
       const result = await updateCard(card.id, { dueDate: dueDate || null });
-      if (result.success && result.data) {
-        onUpdate({ ...card, dueDate: dueDate || null });
-        setIsEditingDueDate(false);
+      if (!result.success) {
+        // Revert on failure
+        onUpdate({ ...card, dueDate: previousDueDate });
+        setDueDate(previousDueDate || "");
+        setIsEditingDueDate(true);
       }
     });
   };
@@ -242,19 +193,33 @@ export function CardModal({ card, board, onClose, onUpdate }: CardModalProps) {
   };
 
   const handleToggleChecklistItem = (itemId: number, isCompleted: boolean) => {
+    // Optimistic update - update UI immediately
+    const updatedCard = {
+      ...card,
+      checklists: card.checklists.map((checklist) => ({
+        ...checklist,
+        items: checklist.items.map((item) =>
+          item.id === itemId ? { ...item, isCompleted } : item
+        ),
+      })),
+    };
+    onUpdate(updatedCard);
+
+    // Then update the server
     startTransition(async () => {
       const result = await updateChecklistItem(itemId, { isCompleted });
-      if (result.success) {
-        const updatedCard = {
+      if (!result.success) {
+        // Revert on failure
+        const revertedCard = {
           ...card,
           checklists: card.checklists.map((checklist) => ({
             ...checklist,
             items: checklist.items.map((item) =>
-              item.id === itemId ? { ...item, isCompleted } : item
+              item.id === itemId ? { ...item, isCompleted: !isCompleted } : item
             ),
           })),
         };
-        onUpdate(updatedCard);
+        onUpdate(revertedCard);
       }
     });
   };
@@ -400,7 +365,7 @@ export function CardModal({ card, board, onClose, onUpdate }: CardModalProps) {
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[98vw] w-[98vw] max-h-[95vh] overflow-y-auto overflow-x-hidden bg-white dark:bg-gray-900 border-0 shadow-2xl p-4 sm:p-6">
         <DialogHeader>
           <div className="flex items-start justify-between">
             <div className="flex-1">
@@ -416,12 +381,12 @@ export function CardModal({ card, board, onClose, onUpdate }: CardModalProps) {
                       setIsEditingTitle(false);
                     }
                   }}
-                  className="text-xl font-semibold"
+                  className="text-xl font-semibold w-full min-w-0"
                   autoFocus
                 />
               ) : (
                 <DialogTitle
-                  className="text-xl cursor-pointer hover:bg-gray-100 p-2 rounded"
+                  className="text-2xl font-bold cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-3 rounded-lg transition-colors text-gray-900 dark:text-gray-100 break-words"
                   onClick={() => setIsEditingTitle(true)}
                 >
                   {card.title}
@@ -429,15 +394,128 @@ export function CardModal({ card, board, onClose, onUpdate }: CardModalProps) {
               )}
 
               {card.workOrder && (
-                <div className="text-sm text-muted-foreground mt-2">
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Work Order: {card.workOrder.orderNumber}
-                    {card.workOrder.client && (
-                      <span>
-                        - {card.workOrder.client.firstName}{" "}
-                        {card.workOrder.client.lastName}
-                      </span>
+                <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center gap-2 mb-3">
+                    <User className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <h3 className="font-semibold text-blue-900 dark:text-blue-100">
+                      Work Order Details
+                    </h3>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                          Order Number
+                        </span>
+                        <div className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                          #{card.workOrder.orderNumber}
+                        </div>
+                      </div>
+                      {card.workOrder.client && (
+                        <div>
+                          <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                            Client
+                          </span>
+                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {card.workOrder.client.firstName}{" "}
+                            {card.workOrder.client.lastName}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                          Status
+                        </span>
+                        <div className="text-sm">
+                          <Badge
+                            className={`${
+                              card.workOrder.status === "Completed"
+                                ? "bg-green-100 text-green-800"
+                                : card.workOrder.status === "In Progress"
+                                ? "bg-blue-100 text-blue-800"
+                                : card.workOrder.status === "On Hold"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {card.workOrder.status || "Planned"}
+                          </Badge>
+                        </div>
+                      </div>
+                      {card.workOrder.quantity && (
+                        <div>
+                          <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                            Quantity
+                          </span>
+                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {card.workOrder.quantity}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {card.workOrder.workOrderItems &&
+                      card.workOrder.workOrderItems.length > 0 && (
+                        <div>
+                          <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                            Items & Assemblies
+                          </span>
+                          <div className="mt-2 space-y-2 max-h-32 overflow-y-auto">
+                            {card.workOrder.workOrderItems.map((item) => (
+                              <div
+                                key={item.id}
+                                className="bg-white dark:bg-gray-800 p-2 rounded border"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words flex-1">
+                                    {item.item.name}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    ×{item.quantity}
+                                  </span>
+                                </div>
+                                {item.item.description && (
+                                  <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                    {item.item.description}
+                                  </div>
+                                )}
+                                {item.selectedAssemblies.length > 0 && (
+                                  <div className="mt-2 ml-3 space-y-1">
+                                    {item.selectedAssemblies.map((assembly) => (
+                                      <div
+                                        key={assembly.id}
+                                        className="text-xs text-gray-600 dark:text-gray-400"
+                                      >
+                                        • {assembly.assembly.name}
+                                        {assembly.assembly.description && (
+                                          <span className="text-gray-500">
+                                            {" "}
+                                            - {assembly.assembly.description}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                    {card.workOrder.notes && (
+                      <div>
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                          Notes
+                        </span>
+                        <div className="text-sm text-gray-700 dark:text-gray-300 mt-1 p-2 bg-white dark:bg-gray-800 rounded border">
+                          {card.workOrder.notes}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -446,9 +524,9 @@ export function CardModal({ card, board, onClose, onUpdate }: CardModalProps) {
           </div>
         </DialogHeader>
 
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 min-w-0 w-full">
           {/* Main Content */}
-          <div className="col-span-2 space-y-6">
+          <div className="xl:col-span-3 space-y-6 min-w-0">
             {/* Labels */}
             {card.cardLabels.length > 0 && (
               <div>
@@ -480,6 +558,7 @@ export function CardModal({ card, board, onClose, onUpdate }: CardModalProps) {
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Add a more detailed description..."
                     rows={4}
+                    className="w-full min-w-0 resize-none"
                   />
                   <div className="flex gap-2">
                     <Button size="sm" onClick={handleUpdateDescription}>
@@ -499,7 +578,7 @@ export function CardModal({ card, board, onClose, onUpdate }: CardModalProps) {
                 </div>
               ) : (
                 <div
-                  className="min-h-[60px] p-3 bg-gray-50 dark:bg-gray-800 rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className="min-h-[60px] p-3 bg-gray-50 dark:bg-gray-800 rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 break-words"
                   onClick={() => setIsEditingDescription(true)}
                 >
                   {card.description || "Add a more detailed description..."}
@@ -528,11 +607,11 @@ export function CardModal({ card, board, onClose, onUpdate }: CardModalProps) {
                         }
                       />
                       <span
-                        className={
+                        className={`break-words flex-1 ${
                           item.isCompleted
                             ? "line-through text-muted-foreground"
                             : ""
-                        }
+                        }`}
                       >
                         {item.text}
                       </span>
@@ -552,6 +631,7 @@ export function CardModal({ card, board, onClose, onUpdate }: CardModalProps) {
                         if (e.key === "Enter")
                           handleAddChecklistItem(checklist.id);
                       }}
+                      className="flex-1 min-w-0"
                     />
                     <Button
                       size="sm"
@@ -567,91 +647,234 @@ export function CardModal({ card, board, onClose, onUpdate }: CardModalProps) {
             {/* Attachments */}
             {card.attachments.length > 0 && (
               <div>
-                <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                   <Paperclip className="h-4 w-4" />
                   Attachments ({card.attachments.length})
                 </h3>
-                <div className="space-y-2">
-                  {card.attachments.map((attachment) => (
-                    <div
-                      key={attachment.id}
-                      className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Paperclip className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm font-medium">
-                            {attachment.fileName}
-                          </p>
-                          {attachment.fileSize && (
-                            <p className="text-xs text-muted-foreground">
-                              {(attachment.fileSize / 1024).toFixed(1)} KB
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            const link = document.createElement("a");
-                            link.href = attachment.fileUrl;
-                            link.download = attachment.fileName;
-                            link.click();
-                          }}
-                        >
-                          Download
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDeleteAttachment(attachment.id)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
+
+                {/* Image Attachments (Cover Images) */}
+                {card.attachments.filter((att) =>
+                  att.mimeType?.startsWith("image/")
+                ).length > 0 && (
+                  <div className="mb-4">
+                    <h4 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                      Images
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      {card.attachments
+                        .filter((att) => att.mimeType?.startsWith("image/"))
+                        .map((attachment, index) => (
+                          <div
+                            key={attachment.id}
+                            className="relative group rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
+                          >
+                            <div className="relative h-32">
+                              <Image
+                                src={attachment.fileUrl}
+                                alt={attachment.fileName}
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                              />
+                            </div>
+                            {index === 0 && (
+                              <div className="absolute top-2 left-2">
+                                <Badge className="bg-blue-600 text-white text-xs">
+                                  Cover
+                                </Badge>
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => {
+                                    const link = document.createElement("a");
+                                    link.href = attachment.fileUrl;
+                                    link.download = attachment.fileName;
+                                    link.click();
+                                  }}
+                                >
+                                  <svg
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                    />
+                                  </svg>
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() =>
+                                    handleDeleteAttachment(attachment.id)
+                                  }
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-2">
+                              <p className="text-white text-xs font-medium truncate">
+                                {attachment.fileName}
+                              </p>
+                              {attachment.fileSize && (
+                                <p className="text-white text-xs opacity-75">
+                                  {(attachment.fileSize / 1024).toFixed(1)} KB
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
+
+                {/* Other Attachments */}
+                {card.attachments.filter(
+                  (att) => !att.mimeType?.startsWith("image/")
+                ).length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                      Files
+                    </h4>
+                    <div className="space-y-2">
+                      {card.attachments
+                        .filter((att) => !att.mimeType?.startsWith("image/"))
+                        .map((attachment) => (
+                          <div
+                            key={attachment.id}
+                            className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-colors min-w-0"
+                          >
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
+                                <Paperclip className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                  {attachment.fileName}
+                                </p>
+                                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                  {attachment.fileSize && (
+                                    <span>
+                                      {(attachment.fileSize / 1024).toFixed(1)}{" "}
+                                      KB
+                                    </span>
+                                  )}
+                                  {attachment.mimeType && (
+                                    <span>
+                                      •{" "}
+                                      {attachment.mimeType
+                                        .split("/")[1]
+                                        .toUpperCase()}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                onClick={() => {
+                                  const link = document.createElement("a");
+                                  link.href = attachment.fileUrl;
+                                  link.download = attachment.fileName;
+                                  link.click();
+                                }}
+                              >
+                                <svg
+                                  className="h-4 w-4"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                  />
+                                </svg>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() =>
+                                  handleDeleteAttachment(attachment.id)
+                                }
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {/* Comments */}
             <div>
-              <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                <MessageSquare className="h-4 w-4" />
+              <h3 className="text-base font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-gray-100">
+                <MessageSquare className="h-5 w-5" />
                 Activity
               </h3>
               <div className="space-y-4">
-                <div className="flex gap-2">
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                   <Textarea
                     placeholder="Write a comment..."
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
                     rows={3}
+                    className="mb-3 resize-none border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500 w-full min-w-0"
                   />
-                  <Button
-                    onClick={handleAddComment}
-                    disabled={!newComment.trim()}
-                  >
-                    Comment
-                  </Button>
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleAddComment}
+                      disabled={!newComment.trim()}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2"
+                    >
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      Comment
+                    </Button>
+                  </div>
                 </div>
                 {card.comments.map((comment) => (
                   <div
                     key={comment.id}
-                    className="bg-gray-50 dark:bg-gray-800 p-3 rounded"
+                    className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-lg shadow-sm"
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold text-sm">
-                        {comment.authorName}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {formatDate(comment.createdAt)}
-                      </span>
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                        {comment.authorName.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm text-gray-900 dark:text-gray-100">
+                            {comment.authorName}
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {formatDate(comment.createdAt)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-sm">{comment.content}</p>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed ml-11 break-words">
+                      {comment.content}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -659,7 +882,7 @@ export function CardModal({ card, board, onClose, onUpdate }: CardModalProps) {
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-4">
+          <div className="space-y-4 min-w-0">
             <div>
               <h3 className="text-sm font-semibold mb-2">Add to card</h3>
               <div className="space-y-2">
@@ -703,6 +926,7 @@ export function CardModal({ card, board, onClose, onUpdate }: CardModalProps) {
                     onKeyDown={(e) => {
                       if (e.key === "Enter") handleAddChecklist();
                     }}
+                    className="flex-1 min-w-0"
                   />
                   <Button size="sm" onClick={handleAddChecklist}>
                     <CheckSquare className="h-4 w-4" />
@@ -710,25 +934,36 @@ export function CardModal({ card, board, onClose, onUpdate }: CardModalProps) {
                 </div>
 
                 {isEditingDueDate ? (
-                  <div className="space-y-2">
-                    <Input
-                      type="datetime-local"
-                      value={
-                        dueDate
-                          ? new Date(dueDate).toISOString().slice(0, 16)
-                          : ""
-                      }
-                      onChange={(e) =>
-                        setDueDate(
-                          e.target.value
-                            ? new Date(e.target.value).toISOString()
-                            : ""
-                        )
-                      }
-                    />
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={handleUpdateDueDate}>
-                        Save
+                  <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
+                    <Label className="text-sm font-medium">
+                      Due Date & Time
+                    </Label>
+                    <div className="relative w-full">
+                      <DatePicker
+                        selected={dueDate ? new Date(dueDate) : null}
+                        onChange={(date) =>
+                          setDueDate(date ? date.toISOString() : "")
+                        }
+                        showTimeSelect
+                        timeFormat="HH:mm"
+                        timeIntervals={15}
+                        dateFormat="MMM d, yyyy h:mm aa"
+                        placeholderText="Select due date and time"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        calendarClassName="shadow-lg border border-gray-200 dark:border-gray-600 rounded-lg"
+                        popperClassName="z-50"
+                        popperPlacement="bottom-start"
+                        isClearable
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleUpdateDueDate}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        Save Date
                       </Button>
                       <Button
                         size="sm"
@@ -740,29 +975,43 @@ export function CardModal({ card, board, onClose, onUpdate }: CardModalProps) {
                       >
                         Cancel
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setDueDate("");
-                          handleUpdateDueDate();
-                        }}
-                      >
-                        Clear
-                      </Button>
+                      {card.dueDate && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => {
+                            setDueDate("");
+                            handleUpdateDueDate();
+                          }}
+                        >
+                          Remove Date
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ) : (
                   <Button
                     variant="outline"
                     size="sm"
-                    className="w-full justify-start"
+                    className="w-full justify-start hover:bg-blue-50 dark:hover:bg-blue-900/20 border-blue-200 dark:border-blue-800"
                     onClick={() => setIsEditingDueDate(true)}
                   >
-                    <Calendar className="mr-2 h-4 w-4" />
-                    {card.dueDate
-                      ? `Due: ${new Date(card.dueDate).toLocaleDateString()}`
-                      : "Set Due Date"}
+                    <Calendar className="mr-2 h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    {card.dueDate ? (
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <span className="text-sm">
+                          Due: {new Date(card.dueDate).toLocaleDateString()}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {new Date(card.dueDate).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                    ) : (
+                      "Set Due Date"
+                    )}
                   </Button>
                 )}
 

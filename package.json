@@ -20,6 +20,7 @@
     "@radix-ui/react-tabs": "^1.1.12",
     "@supabase/ssr": "latest",
     "@supabase/supabase-js": "latest",
+    "@types/react-datepicker": "^7.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.44.2",
@@ -28,6 +29,7 @@
     "next-themes": "^0.4.6",
     "postgres": "^3.4.7",
     "react": "^19.0.0",
+    "react-datepicker": "^8.4.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^3.3.0",
     "zod": "^3.25.67"

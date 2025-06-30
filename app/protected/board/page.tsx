@@ -3,48 +3,44 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { TrelloBoardClient } from "@/components/trello-board-client";
-import {
-  boards,
-  lists,
-  cards,
-  labels,
-  cardLabels,
-  comments,
-  attachments,
-  checklists,
-  checklistItems,
-  workOrders,
-  clients,
-} from "@/lib/db/schema";
+import { boards, lists, labels } from "@/lib/db/schema";
 
-// Type definitions
-type Label = typeof labels.$inferSelect;
-type CardLabel = typeof cardLabels.$inferSelect & {
-  label: Label;
-};
-type Comment = typeof comments.$inferSelect;
-type Attachment = typeof attachments.$inferSelect;
-type ChecklistItem = typeof checklistItems.$inferSelect;
-type Checklist = typeof checklists.$inferSelect & {
-  items: ChecklistItem[];
-};
-type WorkOrder = typeof workOrders.$inferSelect & {
-  client: typeof clients.$inferSelect | null;
-};
-type Card = typeof cards.$inferSelect & {
-  cardLabels: CardLabel[];
-  comments: Comment[];
-  attachments: Attachment[];
-  checklists: Checklist[];
-  workOrder: WorkOrder | null;
-};
-type List = typeof lists.$inferSelect & {
-  cards: Card[];
-};
-type Board = typeof boards.$inferSelect & {
-  lists: List[];
-  labels: Label[];
-};
+// Type definitions - commented out as they're inferred by the query
+// type Label = typeof labels.$inferSelect;
+// type CardLabel = typeof cardLabels.$inferSelect & {
+//   label: Label;
+// };
+// type Comment = typeof comments.$inferSelect;
+// type Attachment = typeof attachments.$inferSelect;
+// type ChecklistItem = typeof checklistItems.$inferSelect;
+// type Checklist = typeof checklists.$inferSelect & {
+//   items: ChecklistItem[];
+// };
+// type WorkOrderItemAssembly = typeof workOrderItemAssemblies.$inferSelect & {
+//   assembly: typeof assemblies.$inferSelect;
+// };
+// type WorkOrderItem = typeof workOrderItems.$inferSelect & {
+//   item: typeof items.$inferSelect;
+//   selectedAssemblies: WorkOrderItemAssembly[];
+// };
+// type WorkOrder = typeof workOrders.$inferSelect & {
+//   client: typeof clients.$inferSelect | null;
+//   workOrderItems: WorkOrderItem[];
+// };
+// type Card = typeof cards.$inferSelect & {
+//   cardLabels: CardLabel[];
+//   comments: Comment[];
+//   attachments: Attachment[];
+//   checklists: Checklist[];
+//   workOrder: WorkOrder | null;
+// };
+// type List = typeof lists.$inferSelect & {
+//   cards: Card[];
+// };
+// type Board = typeof boards.$inferSelect & {
+//   lists: List[];
+//   labels: Label[];
+// };
 
 export default async function BoardPage() {
   const supabase = await createClient();
@@ -95,6 +91,16 @@ export default async function BoardPage() {
               workOrder: {
                 with: {
                   client: true,
+                  workOrderItems: {
+                    with: {
+                      item: true,
+                      selectedAssemblies: {
+                        with: {
+                          assembly: true,
+                        },
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -190,6 +196,16 @@ export default async function BoardPage() {
   const workOrders = await db.query.workOrders.findMany({
     with: {
       client: true,
+      workOrderItems: {
+        with: {
+          item: true,
+          selectedAssemblies: {
+            with: {
+              assembly: true,
+            },
+          },
+        },
+      },
     },
     orderBy: (workOrders, { desc }) => [desc(workOrders.createdAt)],
   });
@@ -204,10 +220,12 @@ export default async function BoardPage() {
           </div>
         </div>
       </div>
-      <TrelloBoardClient
-        initialBoard={board as Board}
-        availableWorkOrders={workOrders as WorkOrder[]}
-      />
+      {board && (
+        <TrelloBoardClient
+          initialBoard={board}
+          availableWorkOrders={workOrders}
+        />
+      )}
     </div>
   );
 }

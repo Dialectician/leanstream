@@ -14,6 +14,7 @@ import {
   workOrders, // eslint-disable-line @typescript-eslint/no-unused-vars
 } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { createClient } from "@/lib/supabase/server";
 
 // List Actions
 export async function createList(
@@ -158,12 +159,21 @@ export async function moveCard(
 }
 
 // Comment Actions
-export async function addComment(
-  cardId: number,
-  content: string,
-  authorName: string = "User"
-) {
+export async function addComment(cardId: number, content: string) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, message: "User not authenticated" };
+    }
+
+    // Use user's email as the author name, or extract name from user metadata if available
+    const authorName =
+      user.user_metadata?.full_name || user.email || "Anonymous User";
+
     const [newComment] = await db
       .insert(comments)
       .values({

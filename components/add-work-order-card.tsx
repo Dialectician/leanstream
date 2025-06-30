@@ -23,97 +23,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Package, User, Calendar, ExternalLink } from "lucide-react";
 import { createCard } from "@/app/protected/board/actions";
-
-type WorkOrder = {
-  id: number;
-  orderNumber: string;
-  status: string | null;
-  dueDate: string | null;
-  client: {
-    id: number;
-    firstName: string | null;
-    lastName: string | null;
-  } | null;
-};
-
-type List = {
-  id: number;
-  name: string;
-};
-
-type Label = {
-  id: number;
-  boardId: number;
-  name: string;
-  color: string;
-  createdAt: string | null;
-};
-
-type CardLabel = {
-  id: number;
-  cardId: number;
-  labelId: number;
-  label: Label;
-};
-
-type Comment = {
-  id: number;
-  cardId: number;
-  content: string;
-  authorName: string;
-  createdAt: string | null;
-};
-
-type Attachment = {
-  id: number;
-  cardId: number;
-  fileName: string;
-  fileUrl: string;
-  fileSize: number | null;
-  mimeType: string | null;
-  createdAt: string | null;
-};
-
-type ChecklistItem = {
-  id: number;
-  checklistId: number;
-  text: string;
-  isCompleted: boolean | null;
-  position: number;
-  createdAt: string | null;
-};
-
-type Checklist = {
-  id: number;
-  cardId: number;
-  title: string;
-  position: number;
-  createdAt: string | null;
-  items: ChecklistItem[];
-};
-
-type Card = {
-  id: number;
-  listId: number;
-  workOrderId: number | null;
-  title: string;
-  description: string | null;
-  position: number;
-  dueDate: string | null;
-  isArchived: boolean | null;
-  createdAt: string | null;
-  cardLabels: CardLabel[];
-  comments: Comment[];
-  attachments: Attachment[];
-  checklists: Checklist[];
-  workOrder: WorkOrder | null;
-};
+import type { WorkOrder, Card, SimpleList } from "@/lib/types";
 
 interface AddWorkOrderCardProps {
   isOpen: boolean;
   onClose: () => void;
   availableWorkOrders: WorkOrder[];
-  lists: List[];
+  lists: SimpleList[];
   onCardCreated: (card: Card) => void;
 }
 
