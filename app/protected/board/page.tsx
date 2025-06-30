@@ -2,7 +2,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
-import { TrelloBoardClient } from "@/components/trello-board-client";
+import { TrelloBoardClient } from "@/components/trello/trello-board-client";
 import { boards, lists, labels } from "@/lib/db/schema";
 
 // Type definitions - commented out as they're inferred by the query
